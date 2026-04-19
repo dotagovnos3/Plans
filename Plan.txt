@@ -1,0 +1,654 @@
+You are in PLAN MODE.
+
+Do not start coding.
+Do not generate implementation immediately.
+Your task is to deeply analyze the product idea, formalize it, identify ambiguities, propose product architecture, domain model, feature boundaries, user flows, screen logic, data model, and phased implementation plan for MVP.
+
+Product name:
+“Планы?” / Fest&Rest
+
+Product summary:
+This is a mobile-first social event discovery and planning app.
+It combines:
+1) discovering events from venues
+2) social coordination with friends
+3) planning together even when place/time are not fully known yet
+
+This is NOT just an event listing app.
+This is NOT just a messenger.
+The core value is bridging the gap between “I found something interesting” and “we actually made a plan and went together”.
+
+Core loop:
+discover event → mark interest or save → create a shared plan → discuss and vote inside the plan → finalize place/time → attend → later repeat with the same people
+
+Main product idea:
+Users browse event recommendations from venues.
+From any event they can quickly create a shared plan with friends.
+A plan has chat, proposals, and voting.
+Plans can also be created from scratch without exact place/time.
+Groups exist as persistent friend circles for repeated planning.
+Past plans can be repeated with the same composition.
+
+Platform:
+Mobile-first app, likely React Native / Expo or similar mobile-oriented architecture.
+
+Language:
+Russian UI
+
+Design direction:
+Warm, soft, friendly, premium consumer app.
+No corporate dashboards.
+No visual clutter.
+Rounded cards, soft shadows, airy spacing.
+Mobile-native feel.
+The existing visual direction can be summarized as “Soft Shell”.
+
+==================================================
+1. PRODUCT VISION
+==================================================
+
+The app solves a real coordination problem:
+People often find events or want to go somewhere, but the actual planning breaks down because:
+- nobody wants to commit immediately
+- exact place is not always known
+- exact time is not always known
+- group chats become chaotic
+- voting and coordination happen in scattered messengers
+
+This product should make the process feel lightweight:
+- discover event
+- tap one button
+- invite people
+- coordinate inside one object
+- finalize
+- later reuse the same social graph
+
+The product is built around 3 main entities:
+1. Event = public event from a venue
+2. Plan = social coordination object
+3. Group = persistent collection of people for reuse
+
+Chat is not a standalone product layer.
+Chat lives inside plans and groups.
+
+==================================================
+2. PRODUCT PRINCIPLES
+==================================================
+
+Use these as hard principles:
+
+1. Event feed must show EVENTS, not generic venue cards.
+2. Planning must work even when exact place/time are unknown.
+3. “Going” is too hard of a commitment on the feed; use softer interest there.
+4. Save/bookmark is private.
+5. Social proof is important:
+   - friends interested
+   - friends already have a plan
+6. The key CTA is not “buy ticket” or “go now”, but creating a shared plan.
+7. A plan is the main coordination unit.
+8. A plan should support:
+   - participants
+   - statuses
+   - proposals
+   - voting
+   - chat
+   - finalization
+9. Groups are reusable containers of people.
+10. Past plans should be easy to repeat with the same people.
+
+==================================================
+3. MAIN USER FLOWS
+==================================================
+
+Formalize these flows in detail.
+
+FLOW A — Discover event and create plan from it
+1. User opens Home Feed
+2. User sees event card from a venue
+3. User can:
+   - mark soft public interest
+   - save privately
+   - open event details
+   - tap “Планы?” to create a plan
+4. If user taps “Планы?”:
+   - open create-plan flow
+   - event is prefilled
+   - event time/place are known by default
+   - user selects friends or a group
+   - optionally enables “Встретиться до мероприятия”
+   - sends invitations
+5. Invited users receive plan invite
+6. Plan appears in “Мои планы”
+7. Participants discuss and possibly vote on pre-meet details
+8. Event itself remains the anchor
+
+FLOW B — Create generic plan without exact place/time
+Example: “Пойдем в кино в субботу вечером, место решим позже”
+1. User taps global plus/create action
+2. User selects activity intent:
+   - Кино
+   - Кофе
+   - Бар
+   - Прогулка
+   - Ужин
+   - Спорт
+   - Выставка
+   - Другое
+3. User can leave place undefined
+4. User can leave time undefined or semi-defined
+5. User invites friends or a group
+6. Participants propose options
+7. Voting happens
+8. Final decision is confirmed
+9. Plan becomes finalized and later past
+
+FLOW C — Proposal and voting flow
+1. Inside a plan, user proposes place or time
+2. Proposal appears:
+   - in details section
+   - optionally as system/proposal card in chat
+3. Participants vote
+4. Voting is multi-select with maximum 2 choices
+5. Plan creator or admin can finalize chosen option
+6. Finalized option becomes official plan data
+
+FLOW D — Reuse past plan / same group
+1. User opens past plan or group
+2. User taps “Повторить” or “Создать новый план с этой группой”
+3. Same people are preselected
+4. Activity can be reused or edited
+5. New plan starts faster
+
+FLOW E — Group-based planning
+1. User opens group
+2. Sees participants, past plans, upcoming plans
+3. Taps create plan
+4. Group members are preselected
+5. Plan runs as normal coordination object
+
+==================================================
+4. MAIN SCREENS
+==================================================
+
+Analyze and structure these screens.
+
+A. Home Feed
+Purpose:
+Primary discovery surface for events from venues.
+
+Must include:
+- product header
+- notifications access
+- optional lightweight filter chips
+- event cards
+- bottom navigation
+
+Event card requirements:
+- event cover image
+- date/time
+- title
+- venue name
+- location / district / metro
+- event category or thematic tag
+- social proof:
+  - “Маша и ещё 2 интересуются”
+  - or “У Димы уже есть план”
+- actions:
+  - soft public interest
+  - private save
+  - “Планы?” CTA
+
+Important:
+- no story circles
+- no hard “иду” commitment on the feed
+- social proof must be visible
+- save should likely be secondary (icon/bookmark)
+- avoid clutter
+
+B. Event Details
+Purpose:
+Deep dive into event and fast transition into plan creation.
+
+Must include:
+- hero image
+- title
+- venue
+- date/time
+- address + map action
+- description
+- friend social proof
+- possibly friend plans around this event
+- sticky bottom CTA area
+
+Actions:
+- mark interest
+- save
+- share
+- create plan via “Планы?”
+
+C. Create Plan from Event
+Purpose:
+Quick coordination around a specific event.
+
+Rules:
+- event place/time prefilled
+- clear indication that the plan is linked to an event
+- invite friends and optionally groups
+- toggle “Встретиться до мероприятия”
+If enabled:
+- reveal pre-meet place
+- reveal pre-meet time
+- allow optional discussion/voting for pre-meet details
+
+D. Generic Create Plan
+Purpose:
+Create a plan from scratch even with uncertainty.
+
+Must support:
+- activity first, not venue first
+- exact or flexible time
+- exact place, area, or undecided place
+- friends/groups selection
+- settings for collaboration
+
+Example outcomes:
+- “Кино, суббота вечером, место решим позже”
+- “Кофе, после работы, центр”
+- “Бар, время обсудим”
+
+E. Plan Details
+Use segmented structure:
+- Детали
+- Чат
+
+Detali tab should include:
+- plan title/activity
+- linked event if applicable
+- participants
+- statuses:
+  - Иду
+  - Думаю
+  - Не могу
+- confirmed place/time
+- if not confirmed: voting blocks
+- proposals list
+- buttons:
+  - Предложить место
+  - Предложить время
+- finalization control for creator/admin
+
+Chat tab should include:
+- discussion thread
+- system messages
+- proposal cards
+- visible transitions when plan changes
+
+F. Plans Hub
+This is not generic chats list.
+This is the main coordination dashboard.
+
+Sections:
+- Активные
+- Приглашения
+- Группы
+- Прошедшие
+
+Rules:
+- invitations must be highly visible and actionable
+- past plans should support “Повторить”
+- groups must be accessible from here
+- active plans are the user’s social coordination center
+
+G. Group Screen
+Purpose:
+Persistent reusable social circle.
+
+Should include:
+- group identity
+- participants
+- upcoming plans
+- past plans
+- group chat
+- create new plan with this group
+
+H. Notifications / Invitations
+Need separation:
+1. Actionable
+   - invited to plan
+   - invited to group
+   - voting required
+   - final decision made
+2. Passive
+   - friend interested in event
+   - venue from subscription published event
+   - reminders
+
+I. Profile
+Should include:
+- avatar
+- name / username
+- friends
+- groups
+- saved events
+- venue subscriptions
+- calendar/history
+- settings
+
+J. Search / Explore
+Should include:
+- list / map mode
+- filters
+- date
+- location
+- theme/category
+- text search
+- venue/event navigation
+
+K. Venue Screen
+Should include:
+- venue identity
+- description
+- subscribe/follow
+- list of venue events
+
+==================================================
+5. ENTITY MODEL
+==================================================
+
+Build a clean MVP domain model around at least these entities:
+
+User
+Friendship
+Venue
+VenueAdmin
+Event
+EventInterest
+SavedEvent
+Plan
+PlanLinkedEvent
+PlanParticipant
+PlanProposal
+Vote
+Group
+GroupMember
+Invitation
+Notification
+Message
+Attachment (optional if needed later)
+
+For each entity, define:
+- purpose
+- essential fields
+- important relations
+- what belongs in MVP vs later
+
+Also explain whether any entities should be merged/simplified for MVP.
+
+==================================================
+6. PLAN MODEL REQUIREMENTS
+==================================================
+
+The Plan entity is the heart of the product.
+
+A plan may be:
+1. linked to an event
+2. generic / standalone
+
+A plan should support:
+- creator
+- title or derived label
+- activity type
+- optional linked event
+- place status:
+  - confirmed
+  - proposed
+  - undecided
+- time status:
+  - confirmed
+  - proposed
+  - undecided
+- participants
+- participant response statuses
+- proposal blocks
+- voting
+- chat
+- lifecycle state
+
+Plan lifecycle should likely include states such as:
+- draft
+- invited
+- active
+- finalized
+- completed/past
+- cancelled
+
+Please analyze if these states are correct or if a simpler model is better for MVP.
+
+==================================================
+7. VOTING MODEL
+==================================================
+
+Voting is core to the product.
+
+Rules to consider:
+- anyone or only allowed participants can propose?
+- can there be multiple active place proposals?
+- can there be multiple active time proposals?
+- multi-select voting up to 2 options
+- creator can finalize outcome
+- what happens if no consensus
+- what happens after finalization
+- what happens if someone proposes again after finalization
+
+Need proposal types:
+- place proposal
+- time proposal
+- maybe combined proposal later, but not required for MVP
+
+Need to decide:
+- whether chat proposal cards and details voting cards are the same source of truth
+- whether proposal cards should be separate entities or simply different renderings of PlanProposal
+
+==================================================
+8. SOCIAL MODEL
+==================================================
+
+Clarify these distinctions:
+
+1. Event interest
+Soft public social signal.
+This is not the same as joining a plan.
+
+2. Saved event
+Private bookmark.
+Should not be public.
+
+3. Plan participation
+Concrete coordination state:
+- Иду
+- Думаю
+- Не могу
+
+4. Group membership
+Persistent reusable social graph
+
+Need to make sure these do not get conflated.
+
+==================================================
+9. PRODUCT RULES TO DECIDE
+==================================================
+
+Identify ambiguities and recommend decisions for MVP.
+
+Questions to resolve:
+- Is “interest” visible to all friends or only some?
+- Can users create private groups?
+- Are groups only friend-based or can users invite non-friends?
+- Can any participant invite more participants into a plan?
+- Who can finalize a vote?
+- Can there be multiple finalizations or edits after finalization?
+- What is the difference between plan owner and plan admin?
+- Does a plan always require chat?
+- How do past plans work?
+- How does repeat flow behave?
+- For event-linked plans, what is editable and what is anchored to the event?
+- If event time changes at venue side, what happens to linked plans?
+- Is pre-meet a sub-entity or just extra place/time fields?
+- How do notifications map to plan lifecycle?
+
+You must explicitly list product ambiguities and give recommended answers.
+
+==================================================
+10. INFORMATION ARCHITECTURE
+==================================================
+
+Recommend bottom navigation for MVP.
+
+Likely candidates:
+- Главная
+- Поиск
+- +
+- Планы
+- Профиль
+
+Explain why this is better or propose a better alternative.
+
+Also explain where these live:
+- saved events
+- notifications
+- invitations
+- groups
+- past plans
+- chat access
+
+==================================================
+11. MVP SCOPE
+==================================================
+
+Define what MUST be in MVP and what should be postponed.
+
+MVP should likely include:
+- auth
+- event feed
+- event details
+- save event
+- interest on event
+- create plan from event
+- create generic plan
+- plan details
+- plan chat
+- proposals
+- voting
+- plans hub
+- group basics
+- invitations
+- notifications basics
+- venue page basics
+- search basics
+
+Postpone if appropriate:
+- advanced recommendations
+- ticketing/payment
+- rich media chat
+- complex moderation
+- advanced venue customization
+- public user blogging/reviews
+- deep calendar sync
+- monetization
+- advanced privacy matrices
+
+Please recommend a sharp MVP boundary.
+
+==================================================
+12. SCREEN-TO-LOGIC MAPPING
+==================================================
+
+For each core screen, map:
+- purpose
+- primary actions
+- data needed
+- edge states
+- navigation destinations
+
+Especially for:
+- Home Feed
+- Event Details
+- Create Plan from Event
+- Generic Create Plan
+- Plan Details
+- Plan Chat
+- Voting interactions
+- Plans Hub
+- Group Screen
+- Notifications
+- Profile
+
+==================================================
+13. DATA / API / STATE THINKING
+==================================================
+
+Do not implement code yet, but propose:
+- clean backend resource model
+- frontend state concerns
+- key APIs or endpoint groups
+- optimistic updates vs server-confirmed updates
+- real-time needs for chat and voting
+- what can be mocked first
+- what state must be normalized
+
+Need clear separation between:
+- event discovery data
+- social plan data
+- group data
+- notification data
+
+==================================================
+14. IMPLEMENTATION PHASES
+==================================================
+
+Propose a staged implementation plan.
+
+Good direction:
+Phase 1 — Product model, types, mocks, routing skeleton
+Phase 2 — Home Feed + Event Details + save/interest
+Phase 3 — Create Plan flows
+Phase 4 — Plan Details + Chat + Proposals + Voting
+Phase 5 — Plans Hub + Groups + Invitations + Notifications
+Phase 6 — Search/Venues/Profile + edge cases + polish
+
+But feel free to improve it.
+
+For each phase, explain:
+- goals
+- dependencies
+- deliverables
+- risks
+
+==================================================
+15. OUTPUT FORMAT
+==================================================
+
+Return your answer in this exact structure:
+
+1. Product understanding
+2. Core value proposition
+3. Primary user flows
+4. MVP entity model
+5. Product rules and recommended decisions
+6. Information architecture
+7. Screen-by-screen logic
+8. State model for plans and voting
+9. Backend/API proposal
+10. Frontend state considerations
+11. MVP scope vs postponed scope
+12. Risks and ambiguities
+13. Recommended implementation phases
+14. Final recommended architecture direction
+
+Important:
+- Be opinionated
+- Do not stay vague
+- Call out weak points and contradictions
+- Recommend simplified MVP decisions when needed
+- Think like a product architect, not just an interface designer
+- The goal is to produce a serious plan that can later be used for implementation

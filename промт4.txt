@@ -1,0 +1,49 @@
+Do NOT return the full document.
+
+Return ONLY the delta for the remaining fixes.
+
+Rules:
+- No full document rewrite
+- No repeated unchanged sections
+- No saving yet
+- No extra commentary
+- No explanations longer than 1 sentence per change
+
+Use this format exactly:
+
+CHANGE 1
+Section:
+Replace this:
+With this:
+Reason:
+
+CHANGE 2
+Section:
+Replace this:
+With this:
+Reason:
+
+Apply only these fixes:
+
+1. Align auth model and API.
+The document says MVP auth is phone OTP or email magic link, but the API still uses register/login semantics.
+Make the API match the chosen MVP auth model.
+
+2. Resolve group invite inconsistency.
+Invitation/entity/navigation still imply group invites, but canonical notification types do not include `group_invite`.
+Choose one canonical rule and patch the document consistently:
+- either keep group invites in MVP and add `group_invite` back to canonical notification types
+- or remove group invites from MVP surfaces/entities where needed
+
+3. Add explicit manual-complete API support.
+Canonical rules say the creator may need to mark a plan completed manually when there is no confirmed_time and no linked event.
+Add the corresponding API action.
+
+4. Remove any remaining wording that implies pre-meet voting in MVP.
+If pre-meet has no formal voting in MVP, replace such wording with plain discussion wording only.
+
+Important:
+- Return patch only
+- Do not restate the full canonical document
+- Do not change anything outside these 4 issues
+- Do not save yet

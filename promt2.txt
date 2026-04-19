@@ -1,0 +1,26 @@
+Good. V2 is close to canonical and should NOT be rewritten again.
+
+Do one final cleanup pass only, then save the document.
+
+Fix these inconsistencies before saving:
+
+1. Remove stale group chat/API remnants.
+V2 says group chat is postponed in MVP, so remove any group message/thread endpoints, screen logic, or infrastructure assumptions that still imply persistent group chat.
+
+2. Define exact linked-event behavior.
+Add explicit product rules for:
+- what happens to a linked plan if event time changes
+- what happens to a linked plan if event is cancelled
+- whether the plan stays active, becomes flagged, or requires creator action
+
+3. Unify notification taxonomy.
+Produce one final canonical notification list for MVP and make all sections use the same set of types. Remove older conflicting notification definitions.
+
+4. Define completed-transition timing explicitly.
+State the exact rule for when a plan moves to completed.
+
+After these fixes:
+- save the result as the canonical product document
+- do not expand scope
+- do not add implementation code
+- keep the document concise and authoritative

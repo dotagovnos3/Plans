@@ -1,0 +1,188 @@
+You already produced Draft V1 for the Fest&Rest / “Планы?” product architecture.
+
+Now do a Revision V2 pass.
+
+Important rules:
+- DO NOT rewrite the whole document from scratch.
+- DO NOT expand the scope.
+- DO NOT start implementation or code.
+- Keep the existing structure unless a section must be corrected.
+- Your task is to review only the weak, contradictory, or prematurely-fixed decisions and produce a cleaner V2.
+- Be critical of your own previous decisions.
+
+Context:
+The current draft is good, but several decisions need revision because they are either:
+1) too early / too technical,
+2) not fully aligned with the original product/TZ,
+3) risky for MVP governance,
+4) likely to create scope creep.
+
+Your job:
+Use the existing Draft V1 as the base.
+Produce a stricter, more canonical V2 focused on product decisions, MVP boundary, and governance rules.
+
+==================================================
+REVISION GOALS
+==================================================
+
+You must review and revise these exact areas:
+
+1. CALENDAR AXIS VS PLAN-CENTRIC MODEL
+The original TZ contains a calendar-oriented concept:
+- shared calendars
+- collaborative event adding
+- personal calendar integration
+
+But Draft V1 moved the product into a plan-centric coordination model.
+
+You must explicitly resolve this conflict:
+- Are calendars a real MVP entity/surface?
+- Or are they intentionally replaced by Plans + Groups in MVP?
+- If replaced, state that clearly and explain why.
+- Give a canonical decision so there is no ambiguity between old TZ and new product model.
+
+2. MAP / SEARCH IN MVP
+Original TZ includes:
+- list mode
+- map mode
+- map clustering
+
+Draft V1 seems to reduce search to basic text/category search.
+
+You must make a firm decision:
+- Is map search in MVP or postponed?
+- If postponed, explain why and what minimum search/discovery stays in MVP.
+- If included, define the exact MVP level (e.g. simple map without deep clustering logic, or full map mode).
+
+No vague answer.
+
+3. PLAN GOVERNANCE / INVITATION CONTROL
+Draft V1 allows any participant to invite others into a plan.
+
+Re-evaluate this.
+For MVP, recommend the safest governance rule with lowest social/coordination risk.
+
+You must explicitly decide:
+- who can invite new participants into a plan
+- who can remove participants
+- whether creator is the only admin in MVP
+- whether creator can transfer ownership in MVP
+- whether max participant count should exist in MVP
+
+Prefer simplicity and safety over flexibility.
+
+4. GROUP CHAT IN MVP
+Draft V1 includes group chat.
+
+Challenge this decision.
+The product’s core value is plan coordination, not building another messenger.
+
+You must decide:
+- keep group chat in MVP
+OR
+- postpone group chat and keep groups as reusable membership containers + plan launch surface
+
+Choose one and justify it strictly from product value and MVP focus.
+
+5. PREMATURE TECH LOCK-IN
+Draft V1 fixed several technical choices too early:
+- Node.js / Fastify
+- Redis
+- S3/CDN
+etc.
+
+Revise the architecture section so that:
+- product architecture is separated from implementation stack
+- only truly necessary technical decisions remain fixed
+- optional backend stack choices are labeled as recommendations, not canonical truth
+
+Keep Expo + React Native + TypeScript as the recommended frontend path.
+But backend choices must be reframed more carefully.
+
+6. CANONICAL PRODUCT RULES
+Create one short but authoritative section called:
+“Canonical MVP Product Rules”
+
+This section must contain the final product rules in a bullet list.
+No explanations longer than one sentence each.
+
+It must include at least:
+- event interest visibility
+- saved event privacy
+- event-linked plan editability
+- plan lifecycle
+- participant statuses
+- proposal types in MVP
+- voting rules
+- finalization authority
+- post-finalization edits
+- invitation rights
+- group privacy model
+- repeat flow behavior
+- pre-meet treatment
+- notification priorities
+- past plan behavior
+
+This section should become the single source of truth for later design and engineering work.
+
+==================================================
+ADDITIONAL REQUIRED CHECKS
+==================================================
+
+Also review these points and correct them if needed:
+
+A. EVENT-LINKED PLAN ANCHORING
+If a plan is linked to an event:
+- what is read-only?
+- what is editable?
+- what happens if the venue changes the event time?
+- what happens if the event is cancelled?
+
+B. “INTEREST” VS “GOING”
+Make sure the system clearly separates:
+- event-level soft interest
+- plan participation status
+Do not let these collapse semantically.
+
+C. PRE-MEET MODEL
+Draft V1 kept pre-meet as simple text fields.
+Re-check whether this is still the right MVP choice.
+If yes, keep it explicitly simple and closed.
+If no, explain what replaces it.
+Do NOT allow half-defined complexity.
+
+D. MAX PLAN SIZE
+Draft V1 hinted this should be limited.
+You must make a clear recommendation for MVP and justify it.
+
+==================================================
+OUTPUT FORMAT
+==================================================
+
+Return the answer in this exact structure:
+
+1. V2 revision summary
+2. Revised decisions (only changed or challenged decisions from V1)
+3. Canonical MVP Product Rules
+4. Updated MVP scope boundary
+5. Updated architecture direction
+6. Remaining risks / unresolved questions
+
+==================================================
+QUALITY BAR
+==================================================
+
+Important:
+- Be opinionated.
+- Be concise.
+- Do not restate the entire previous analysis.
+- Only revise what needs revision.
+- Mark every changed recommendation with:
+  CHANGED FROM V1:
+- Mark every confirmed recommendation with:
+  CONFIRMED FROM V1:
+- If a previous decision was too early, say so explicitly.
+- Prefer a narrower MVP if that improves coherence.
+
+Final objective:
+Produce a cleaner V2 that can serve as the canonical product decision document before design/system architecture work continues.
