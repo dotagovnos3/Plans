@@ -23,13 +23,43 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   plan_completed: 'План завершён',
 };
 
+const PLAN_TYPES: NotificationType[] = ['plan_invite', 'proposal_created', 'plan_finalized', 'plan_unfinalized', 'plan_reminder', 'plan_completed'];
+const GROUP_TYPES: NotificationType[] = ['group_invite'];
+const EVENT_TYPES: NotificationType[] = ['event_time_changed', 'event_cancelled'];
+
 export const NotificationsScreen = ({ navigation }: Props) => {
   const { notifications, markRead, markAllRead, unreadCount } = useNotificationsStore();
 
-  const renderItem = ({ item }: { item: { id: string; type: NotificationType; read: boolean; created_at: string } }) => (
-    <TouchableOpacity style={[s.card, !item.read && s.cardUnread]} onPress={() => markRead(item.id)} activeOpacity={0.7}>
+  const handleTap = (item: typeof notifications[0]) => {
+    markRead(item.id);
+    const payload = item.payload;
+    if (PLAN_TYPES.includes(item.type) && payload.plan_id) {
+      (navigation as any).navigate('PlansTab', {
+        screen: 'PlanDetails',
+        params: { planId: payload.plan_id as string },
+      });
+    } else if (GROUP_TYPES.includes(item.type) && payload.group_id) {
+      (navigation as any).navigate('PlansTab', {
+        screen: 'GroupDetails',
+        params: { groupId: payload.group_id as string },
+      });
+    } else if (EVENT_TYPES.includes(item.type) && payload.event_id) {
+      (navigation as any).navigate('HomeTab', {
+        screen: 'EventDetails',
+        params: { eventId: payload.event_id as string },
+      });
+    }
+  };
+
+  const renderItem = ({ item }: { item: typeof notifications[0] }) => (
+    <TouchableOpacity style={[s.card, !item.read && s.cardUnread]} onPress={() => handleTap(item)} activeOpacity={0.7}>
       <View style={s.cardContent}>
-        <Text style={s.typeLabel}>{TYPE_LABELS[item.type]}</Text>
+        <View style={s.cardTextCol}>
+          <Text style={s.typeLabel}>{TYPE_LABELS[item.type]}</Text>
+          {(item.payload as Record<string, string>).inviter_name && <Text style={s.payloadText}>от {(item.payload as Record<string, string>).inviter_name}</Text>}
+          {(item.payload as Record<string, string>).proposer_name && <Text style={s.payloadText}>от {(item.payload as Record<string, string>).proposer_name}</Text>}
+          {(item.payload as Record<string, string>).plan_title && <Text style={s.payloadText}>{(item.payload as Record<string, string>).plan_title}</Text>}
+        </View>
         <Text style={s.time}>{formatTimeAgo(item.created_at)}</Text>
       </View>
     </TouchableOpacity>
@@ -64,7 +94,9 @@ const s = StyleSheet.create({
   list: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xxxl },
   card: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, padding: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), marginBottom: theme.spacing.sm, ...theme.shadows.sm },
   cardUnread: { borderLeftWidth: 3, borderLeftColor: theme.colors.primary },
-  cardContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  typeLabel: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, flex: 1 },
+  cardContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardTextCol: { flex: 1 },
+  typeLabel: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, marginBottom: 2 },
+  payloadText: { ...theme.typography.caption, color: theme.colors.textSecondary },
   time: { ...theme.typography.caption, color: theme.colors.textTertiary, marginLeft: theme.spacing.md },
 });

@@ -3,12 +3,34 @@ import { query } from './pool.js';
 
 const U: Record<string, string> = {};
 function u(key: string): string { if (!U[key]) U[key] = randomUUID(); return U[key]; }
-function q(s: string) { return `'${s}'`; }
 
 async function seed() {
   console.log('Seeding dev data...');
 
-  const me=u('me'),u1=u('u1'),u2=u('u2'),u3=u('u3'),u4=u('u4'),u5=u('u5');
+  // First, try to fetch existing users by their phone numbers
+  const phones = ['+79990000000', '+79991111111', '+79992222222', '+79993333333', '+79994444444', '+79995555555'];
+  const existingUsers = await query(
+    `SELECT id, phone FROM users WHERE phone = ANY($1::text[])`,
+    [phones]
+  );
+
+  // Map existing users by phone
+  const phoneToId: Record<string, string> = {};
+  for (const row of existingUsers.rows) {
+    phoneToId[row.phone] = row.id;
+  }
+
+  // Generate UUIDs for users not yet in DB
+  const me = phoneToId['+79990000000'] || u('me');
+  const u1 = phoneToId['+79991111111'] || u('u1');
+  const u2 = phoneToId['+79992222222'] || u('u2');
+  const u3 = phoneToId['+79993333333'] || u('u3');
+  const u4 = phoneToId['+79994444444'] || u('u4');
+  const u5 = phoneToId['+79995555555'] || u('u5');
+
+  // Store in U map for consistency
+  U['me'] = me; U['u1'] = u1; U['u2'] = u2; U['u3'] = u3; U['u4'] = u4; U['u5'] = u5;
+
   const v1=u('v1'),v2=u('v2'),v3=u('v3'),v4=u('v4'),v5=u('v5');
   const e1=u('e1'),e2=u('e2'),e3=u('e3'),e4=u('e4'),e5=u('e5'),e6=u('e6');
   const p1=u('p1'),p2=u('p2'),p3=u('p3');
@@ -21,7 +43,7 @@ async function seed() {
     ('${u4}','+79994444444','Артём','artem'),
     ('${u5}','+79995555555','Катя','katya'),
     ('${me}','+79990000000','Я','me')
-    ON CONFLICT (id) DO NOTHING`);
+    ON CONFLICT (phone) DO NOTHING`);
 
   const f = (a:string,b:string) => a<b ? `('${a}','${b}','accepted')` : `('${b}','${a}','accepted')`;
   await query(`INSERT INTO friendships (requester_id, addressee_id, status) VALUES

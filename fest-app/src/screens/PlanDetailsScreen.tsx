@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { usePlansStore } from '../stores/plansStore';
 import { useAuthStore } from '../stores/authStore';
+import { useInvitationsStore } from '../stores/invitationsStore';
 import { formatDateShort } from '../utils/dates';
 import { ACTIVITY_LABELS, type ActivityType, type Plan, type PlanProposal, type PlanParticipant, type Message, type ParticipantStatus } from '../types';
+import { mockUsers } from '../mocks';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
 import type { PlansStackParamList } from '../navigation/types';
@@ -14,15 +16,18 @@ type Props = NativeStackScreenProps<PlansStackParamList, 'PlanDetails'>;
 
 const STATUS_LABELS: Record<string, string> = { going: 'Иду', thinking: 'Думаю', cant: 'Не могу', invited: 'Приглашение' };
 const STATUS_COLORS: Record<string, string> = { going: theme.colors.going, thinking: theme.colors.thinking, cant: theme.colors.cant, invited: theme.colors.invited };
+const MAX_VOTES_PER_TYPE = 2;
 
 export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   const { planId } = route.params;
   const plans = usePlansStore((s) => s.plans);
   const messages = usePlansStore((s) => s.messages);
-  const { updateParticipantStatus, addProposal, vote, unvote, finalizePlan, unfinalizePlan, cancelPlan, addMessage, addPlan } = usePlansStore();
+  const { updateParticipantStatus, addProposal, vote, unvote, finalizePlan, unfinalizePlan, cancelPlan, completePlan, addMessage, addPlan, inviteParticipant, removeParticipant, leavePlan } = usePlansStore();
+  const addInvitation = useInvitationsStore((s) => s.addInvitation);
   const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'details' | 'chat'>('details');
   const [chatInput, setChatInput] = useState('');
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const plan = plans.find((p) => p.id === planId);
   if (!plan || !user) return <ScreenContainer><View style={s.inner}><EmptyState text="План не найден" /></View></ScreenContainer>;
@@ -49,6 +54,26 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
 
   const handleSetStatus = (status: ParticipantStatus) => {
     if (myParticipation) updateParticipantStatus(planId, user.id, status);
+  };
+
+  const handleInviteFriend = (friendId: string) => {
+    inviteParticipant(planId, friendId);
+    addInvitation('plan', planId, user.id, friendId);
+    setShowInviteModal(false);
+  };
+
+  const handleRemoveParticipant = (userId: string) => {
+    Alert.alert('Удалить участника', 'Вы уверены?', [
+      { text: 'Отмена', style: 'cancel' },
+      { text: 'Удалить', style: 'destructive', onPress: () => removeParticipant(planId, userId) },
+    ]);
+  };
+
+  const handleLeave = () => {
+    Alert.alert('Покинуть план', 'Вы уверены?', [
+      { text: 'Отмена', style: 'cancel' },
+      { text: 'Покинуть', style: 'destructive', onPress: () => { leavePlan(planId, user!.id); navigation.goBack(); } },
+    ]);
   };
 
   const handleRepeat = () => {
@@ -90,8 +115,13 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
     };
 
     addPlan(newPlan);
+    participants.forEach((p) => addInvitation('plan', newId, user.id, p.user_id));
     navigation.replace('PlanDetails', { planId: newId });
   };
+
+  const nonParticipants = mockUsers.filter(
+    (u) => u.id !== user.id && !(plan.participants || []).some((p) => p.user_id === u.id)
+  );
 
   return (
     <ScreenContainer>
@@ -114,16 +144,38 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
         </View>
 
         {tab === 'details' ? (
-          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={vote} onUnvote={unvote} onFinalize={finalizePlan} onUnfinalize={unfinalizePlan} onCancel={cancelPlan} onAddProposal={addProposal} onRepeat={handleRepeat} isCompleted={plan.lifecycle_state === 'completed'} />
+          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={vote} onUnvote={unvote} onFinalize={finalizePlan} onUnfinalize={unfinalizePlan} onCancel={cancelPlan} onComplete={completePlan} onAddProposal={addProposal} onRepeat={handleRepeat} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
         ) : (
-          <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} />
+          <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} planId={planId} onVote={vote} onUnvote={unvote} userId={user.id} />
         )}
+
+        <Modal visible={showInviteModal} transparent animationType="slide" onRequestClose={() => setShowInviteModal(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalContent}>
+              <Text style={s.modalTitle}>Пригласить в план</Text>
+              {nonParticipants.length === 0 ? (
+                <Text style={s.modalEmpty}>Все друзья уже в плане</Text>
+              ) : (
+                <FlatList data={nonParticipants} keyExtractor={(u) => u.id} renderItem={({ item }) => (
+                  <TouchableOpacity style={s.inviteRow} onPress={() => handleInviteFriend(item.id)}>
+                    <View style={s.inviteAvatar}><Text style={s.inviteLetter}>{item.name[0]}</Text></View>
+                    <Text style={s.inviteName}>{item.name}</Text>
+                    <Text style={s.invitePlus}>+</Text>
+                  </TouchableOpacity>
+                )} style={{ maxHeight: 300 }} />
+              )}
+              <TouchableOpacity style={s.modalCancelBtn} onPress={() => setShowInviteModal(false)}>
+                <Text style={s.modalCancelText}>Закрыть</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </ScreenContainer>
   );
 };
 
-const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, onFinalize, onUnfinalize, onCancel, onAddProposal, onRepeat, isCompleted }: {
+const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, onFinalize, onUnfinalize, onCancel, onComplete, onAddProposal, onRepeat, onInvite, onRemove, onLeave }: {
   plan: Plan; isCreator: boolean; myStatus: ParticipantStatus;
   onSetStatus: (s: ParticipantStatus) => void;
   onVote: (planId: string, proposalId: string, userId: string) => void;
@@ -131,9 +183,12 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
   onFinalize: (planId: string, placeProposalId?: string, timeProposalId?: string) => void;
   onUnfinalize: (planId: string) => void;
   onCancel: (planId: string) => void;
+  onComplete: (planId: string) => void;
   onAddProposal: (planId: string, proposal: PlanProposal) => void;
   onRepeat: () => void;
-  isCompleted: boolean;
+  onInvite: () => void;
+  onRemove?: (userId: string) => void;
+  onLeave?: () => void;
 }) => {
   const user = useAuthStore((s) => s.user);
   const [propModalVisible, setPropModalVisible] = useState(false);
@@ -149,9 +204,12 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
 
   const placeProposals = plan.proposals?.filter((p) => p.type === 'place' && p.status === 'active') || [];
   const timeProposals = plan.proposals?.filter((p) => p.type === 'time' && p.status === 'active') || [];
-  const canPropose = plan.lifecycle_state === 'active' && !isCompleted;
+  const canPropose = plan.lifecycle_state === 'active';
   const placeUndecided = !plan.confirmed_place_text && canPropose;
   const timeUndecided = !plan.confirmed_time && canPropose;
+
+  const myVotesForPlace = placeProposals.filter((pr) => pr.votes?.some((v) => v.voter_id === user?.id)).length;
+  const myVotesForTime = timeProposals.filter((pr) => pr.votes?.some((v) => v.voter_id === user?.id)).length;
 
   const handleAddProposal = () => {
     if (!user) return;
@@ -189,24 +247,46 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
     setPropModalVisible(false);
   };
 
+  const isCompleted = plan.lifecycle_state === 'completed';
+  const isCancelled = plan.lifecycle_state === 'cancelled';
+
   return (
     <>
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
         {plan.linked_event && (
-          <View style={s.linkedEvent}>
+          <TouchableOpacity style={s.linkedEvent} onPress={() => {}}>
             <Text style={s.linkedText}>📎 {plan.linked_event.title}</Text>
-          </View>
+          </TouchableOpacity>
         )}
 
-        <Text style={s.sectionTitle}>Участники</Text>
+        <View style={s.sectionRow}>
+          <Text style={s.sectionTitle}>Участники</Text>
+          {isCreator && canPropose && (
+            <TouchableOpacity style={s.addPropBtn} onPress={onInvite}>
+              <Text style={s.addPropBtnText}>+ Пригласить</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {plan.participants?.map((p) => (
           <View key={p.id} style={s.participantRow}>
-            <Text style={s.participantName}>{p.user?.name ?? '???'}</Text>
-            <Text style={[s.statusBadge, { backgroundColor: STATUS_COLORS[p.status] + '22', color: STATUS_COLORS[p.status] }]}>{STATUS_LABELS[p.status]}</Text>
+            <Text style={s.participantName}>{p.user?.name ?? '???'}{p.user_id === plan.creator_id ? ' (создатель)' : ''}</Text>
+            <View style={s.participantRight}>
+              <Text style={[s.statusBadge, { backgroundColor: STATUS_COLORS[p.status] + '22', color: STATUS_COLORS[p.status] }]}>{STATUS_LABELS[p.status]}</Text>
+              {isCreator && p.user_id !== plan.creator_id && onRemove && (
+                <TouchableOpacity onPress={() => onRemove(p.user_id)} style={s.removeBtn}>
+                  <Text style={s.removeBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         ))}
+        {onLeave && !isCompleted && !isCancelled && (
+          <TouchableOpacity style={s.leaveBtn} onPress={onLeave}>
+            <Text style={s.leaveBtnText}>Покинуть план</Text>
+          </TouchableOpacity>
+        )}
 
-        {!isCompleted && (
+        {!isCompleted && !isCancelled && (
           <>
             <View style={s.divider} />
             <Text style={s.sectionTitle}>Ваш статус</Text>
@@ -234,7 +314,7 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
         ) : (
           <>
             {placeProposals.map((prop) => (
-              <ProposalCard key={prop.id} proposal={prop} userId={user?.id ?? ''} planId={plan.id} onVote={onVote} onUnvote={onUnvote} isCreator={isCreator} onFinalize={onFinalize} proposalType="place" />
+              <ProposalCard key={prop.id} proposal={prop} userId={user?.id ?? ''} planId={plan.id} onVote={onVote} onUnvote={onUnvote} isCreator={isCreator} onFinalize={onFinalize} proposalType="place" votesUsed={myVotesForPlace} maxVotes={MAX_VOTES_PER_TYPE} />
             ))}
             {placeProposals.length === 0 && <Text style={s.undecided}>Ещё не предложено</Text>}
           </>
@@ -253,7 +333,7 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
         ) : (
           <>
             {timeProposals.map((prop) => (
-              <ProposalCard key={prop.id} proposal={prop} userId={user?.id ?? ''} planId={plan.id} onVote={onVote} onUnvote={onUnvote} isCreator={isCreator} onFinalize={onFinalize} proposalType="time" />
+              <ProposalCard key={prop.id} proposal={prop} userId={user?.id ?? ''} planId={plan.id} onVote={onVote} onUnvote={onUnvote} isCreator={isCreator} onFinalize={onFinalize} proposalType="time" votesUsed={myVotesForTime} maxVotes={MAX_VOTES_PER_TYPE} />
             ))}
             {timeProposals.length === 0 && <Text style={s.undecided}>Ещё не предложено</Text>}
           </>
@@ -261,13 +341,14 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
 
         {plan.pre_meet_enabled && (
           <>
+            <View style={s.divider} />
             <Text style={s.sectionTitle}>Встреча до</Text>
             {plan.pre_meet_place_text && <Text style={s.meta}>{plan.pre_meet_place_text}</Text>}
             {plan.pre_meet_time && <Text style={s.meta}>{formatDateShort(plan.pre_meet_time)}</Text>}
           </>
         )}
 
-        {isCreator && !isCompleted && (
+        {isCreator && !isCompleted && !isCancelled && (
           <View style={s.divider}>
             {plan.lifecycle_state === 'active' && plan.place_status === 'confirmed' && plan.time_status === 'confirmed' && (
               <TouchableOpacity style={s.finalizeBtn} onPress={() => onFinalize(plan.id)}>
@@ -279,11 +360,20 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
                 <Text style={s.unfinalizeBtnText}>Отменить подтверждение</Text>
               </TouchableOpacity>
             )}
-            {plan.lifecycle_state !== 'completed' && plan.lifecycle_state !== 'cancelled' && (
-              <TouchableOpacity style={s.cancelBtn} onPress={() => onCancel(plan.id)}>
-                <Text style={s.cancelBtnText}>Отменить план</Text>
+            {plan.lifecycle_state === 'active' && !(plan.place_status === 'confirmed' && plan.time_status === 'confirmed') && (
+              <TouchableOpacity style={s.completeBtn} onPress={() => onComplete(plan.id)}>
+                <Text style={s.completeBtnText}>Завершить план</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={s.cancelBtn} onPress={() => onCancel(plan.id)}>
+              <Text style={s.cancelBtnText}>Отменить план</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isCancelled && (
+          <View style={s.cancelledBanner}>
+            <Text style={s.cancelledText}>План отменён</Text>
           </View>
         )}
 
@@ -318,21 +408,28 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
   );
 };
 
-const ProposalCard = ({ proposal, userId, planId, onVote, onUnvote, isCreator, onFinalize, proposalType }: {
+const ProposalCard = ({ proposal, userId, planId, onVote, onUnvote, isCreator, onFinalize, proposalType, votesUsed, maxVotes }: {
   proposal: PlanProposal; userId: string; planId: string;
   onVote: (planId: string, proposalId: string, userId: string) => void;
   onUnvote: (planId: string, proposalId: string, userId: string) => void;
   isCreator: boolean; onFinalize: (planId: string, placeProposalId?: string, timeProposalId?: string) => void;
   proposalType: 'place' | 'time';
+  votesUsed: number;
+  maxVotes: number;
 }) => {
   const hasVoted = proposal.votes?.some((v) => v.voter_id === userId);
   const voteCount = proposal.votes?.length ?? 0;
+  const canVote = !hasVoted && votesUsed < maxVotes;
 
   return (
     <View style={s.proposalCard}>
       <Text style={s.proposalValue}>{proposal.type === 'time' && proposal.value_datetime ? formatDateShort(proposal.value_datetime) : proposal.value_text}</Text>
       <View style={s.proposalActions}>
-        <TouchableOpacity style={[s.voteBtn, hasVoted && s.voteBtnActive]} onPress={() => hasVoted ? onUnvote(planId, proposal.id, userId) : onVote(planId, proposal.id, userId)}>
+        <TouchableOpacity
+          style={[s.voteBtn, hasVoted && s.voteBtnActive, !hasVoted && !canVote && s.voteBtnDisabled]}
+          onPress={() => hasVoted ? onUnvote(planId, proposal.id, userId) : canVote ? onVote(planId, proposal.id, userId) : null}
+          disabled={!hasVoted && !canVote}
+        >
           <Text style={s.voteBtnText}>{hasVoted ? '✓' : '👍'} {voteCount}</Text>
         </TouchableOpacity>
         {isCreator && (
@@ -345,28 +442,57 @@ const ProposalCard = ({ proposal, userId, planId, onVote, onUnvote, isCreator, o
   );
 };
 
-const ChatTab = ({ messages: msgs, input, setInput, onSend }: { messages: Message[]; input: string; setInput: (v: string) => void; onSend: () => void }) => (
-  <View style={s.chatContainer}>
-    <FlatList data={msgs} keyExtractor={(m) => m.id} renderItem={({ item }) => (
-      <View style={[s.msgBubble, item.type === 'system' && s.msgSystem]}>
-        {item.type === 'proposal_card' ? (
-          <Text style={s.msgProposal}>📋 Предложение</Text>
-        ) : (
-          <>
+const ChatTab = ({ messages: msgs, input, setInput, onSend, planId, onVote, onUnvote, userId }: { messages: Message[]; input: string; setInput: (v: string) => void; onSend: () => void; planId: string; onVote: (planId: string, proposalId: string, userId: string) => void; onUnvote: (planId: string, proposalId: string, userId: string) => void; userId: string }) => {
+  const plans = usePlansStore((s) => s.plans);
+  const plan = plans.find((p) => p.id === planId);
+
+  const getProposal = (refId: string) => plan?.proposals?.find((pr) => pr.id === refId);
+
+  return (
+    <View style={s.chatContainer}>
+      <FlatList data={[...msgs].reverse()} keyExtractor={(m) => m.id} renderItem={({ item }) => {
+        if (item.type === 'proposal_card' && item.reference_id) {
+          const prop = getProposal(item.reference_id);
+          return (
+            <View style={s.msgProposalCard}>
+              <Text style={s.msgProposalLabel}>{prop?.type === 'place' ? '📍 Место' : '🕐 Время'}</Text>
+              <Text style={s.msgProposalValue}>{prop?.value_text ?? 'Предложение'}</Text>
+              {prop && prop.status === 'active' && (
+                <View style={s.msgProposalActions}>
+                  <TouchableOpacity
+                    style={[s.voteBtn, prop.votes?.some((v) => v.voter_id === userId) && s.voteBtnActive]}
+                    onPress={() => prop.votes?.some((v) => v.voter_id === userId) ? onUnvote(planId, prop.id, userId) : onVote(planId, prop.id, userId)}
+                  >
+                    <Text style={s.voteBtnText}>{prop.votes?.some((v) => v.voter_id === userId) ? '✓' : '👍'} {prop.votes?.length ?? 0}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          );
+        }
+        if (item.type === 'system') {
+          return (
+            <View style={[s.msgBubble, s.msgSystem]}>
+              <Text style={s.msgText}>{item.text}</Text>
+            </View>
+          );
+        }
+        return (
+          <View style={s.msgBubble}>
             <Text style={s.msgSender}>{item.sender?.name ?? ''}</Text>
             <Text style={s.msgText}>{item.text}</Text>
-          </>
-        )}
+          </View>
+        );
+      }} contentContainerStyle={s.chatList} inverted ListEmptyComponent={<EmptyState text="Нет сообщений" />} />
+      <View style={s.chatInputRow}>
+        <TextInput style={s.chatInput} placeholder="Сообщение..." placeholderTextColor={theme.colors.textTertiary} value={input} onChangeText={setInput} />
+        <TouchableOpacity style={s.sendBtn} onPress={onSend}>
+          <Text style={s.sendBtnText}>→</Text>
+        </TouchableOpacity>
       </View>
-    )} contentContainerStyle={s.chatList} inverted={false} ListEmptyComponent={<EmptyState text="Нет сообщений" />} />
-    <View style={s.chatInputRow}>
-      <TextInput style={s.chatInput} placeholder="Сообщение..." placeholderTextColor={theme.colors.textTertiary} value={input} onChangeText={setInput} />
-      <TouchableOpacity style={s.sendBtn} onPress={onSend}>
-        <Text style={s.sendBtnText}>→</Text>
-      </TouchableOpacity>
     </View>
-  </View>
-);
+  );
+};
 
 const s = StyleSheet.create({
   inner: { flex: 1, backgroundColor: theme.colors.background },
@@ -389,8 +515,13 @@ const s = StyleSheet.create({
   addPropBtn: { backgroundColor: theme.colors.primaryLight + '22', borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, marginTop: theme.spacing.sm },
   addPropBtnText: { ...theme.typography.small, color: theme.colors.primary, fontWeight: '600' },
   participantRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Platform.select({ web: 2, default: theme.spacing.xs }) },
-  participantName: { ...theme.typography.body, color: theme.colors.textPrimary },
+  participantName: { ...theme.typography.body, color: theme.colors.textPrimary, flex: 1 },
+  participantRight: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   statusBadge: { ...theme.typography.small, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, borderRadius: theme.borderRadius.full, overflow: 'hidden', fontWeight: '600' },
+  removeBtn: { paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs },
+  removeBtnText: { color: theme.colors.error, fontSize: 14, fontWeight: '600' },
+  leaveBtn: { marginTop: theme.spacing.md, paddingVertical: theme.spacing.md, borderRadius: theme.borderRadius.md, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  leaveBtnText: { ...theme.typography.body, color: theme.colors.error },
   divider: { height: 1, backgroundColor: theme.colors.borderLight, marginVertical: theme.spacing.lg, ...Platform.select({ web: { marginVertical: theme.spacing.md } }) },
   statusRow: { flexDirection: 'row', gap: theme.spacing.sm },
   statusBtn: { flex: 1, paddingVertical: Platform.select({ web: theme.spacing.sm, default: theme.spacing.md }), borderRadius: theme.borderRadius.md, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
@@ -402,6 +533,7 @@ const s = StyleSheet.create({
   proposalActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   voteBtn: { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border },
   voteBtnActive: { backgroundColor: theme.colors.primaryLight + '22', borderColor: theme.colors.primaryLight },
+  voteBtnDisabled: { opacity: 0.4 },
   voteBtnText: { ...theme.typography.caption, color: theme.colors.textSecondary },
   pickBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm },
   pickBtnText: { color: theme.colors.textInverse, fontWeight: '600', fontSize: 13 },
@@ -409,8 +541,12 @@ const s = StyleSheet.create({
   finalizeBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   unfinalizeBtn: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md },
   unfinalizeBtnText: { color: theme.colors.textSecondary, fontWeight: '600', fontSize: 15 },
+  completeBtn: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md },
+  completeBtnText: { color: theme.colors.textSecondary, fontWeight: '600', fontSize: 15 },
   cancelBtn: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), alignItems: 'center' },
   cancelBtnText: { color: theme.colors.error, fontWeight: '600', fontSize: 15 },
+  cancelledBanner: { backgroundColor: theme.colors.error + '15', borderRadius: theme.borderRadius.md, padding: theme.spacing.lg, alignItems: 'center', marginTop: theme.spacing.lg },
+  cancelledText: { ...theme.typography.body, color: theme.colors.error, fontWeight: '600' },
   repeatBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.xl }), alignItems: 'center', marginTop: theme.spacing.lg },
   repeatBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: Platform.select({ web: 16, default: 18 }) },
   meta: { ...theme.typography.caption, color: theme.colors.textSecondary, marginBottom: theme.spacing.xs },
@@ -423,11 +559,20 @@ const s = StyleSheet.create({
   modalCancelText: { ...theme.typography.body, color: theme.colors.textSecondary },
   modalSubmitBtn: { flex: 1, backgroundColor: theme.colors.primary, paddingVertical: theme.spacing.lg, borderRadius: theme.borderRadius.md, alignItems: 'center' },
   modalSubmitText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: 16 },
+  modalEmpty: { ...theme.typography.body, color: theme.colors.textTertiary, textAlign: 'center', paddingVertical: theme.spacing.xl },
+  inviteRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight },
+  inviteAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.primaryLight + '33', alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
+  inviteLetter: { fontSize: 16, fontWeight: '700', color: theme.colors.primary },
+  inviteName: { ...theme.typography.body, color: theme.colors.textPrimary, flex: 1 },
+  invitePlus: { ...theme.typography.h4, color: theme.colors.primary },
   chatContainer: { flex: 1 },
   chatList: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, ...Platform.select({ web: { paddingVertical: theme.spacing.xs } }) },
   msgBubble: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.lg, padding: Platform.select({ web: theme.spacing.sm, default: theme.spacing.md }), marginBottom: theme.spacing.sm, ...theme.shadows.sm },
   msgSystem: { backgroundColor: theme.colors.surfaceAlt, borderLeftWidth: 3, borderLeftColor: theme.colors.primaryLight },
-  msgProposal: { ...theme.typography.body, color: theme.colors.primary },
+  msgProposalCard: { backgroundColor: theme.colors.primaryLight + '11', borderRadius: theme.borderRadius.md, padding: theme.spacing.md, marginBottom: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.primaryLight + '33' },
+  msgProposalLabel: { ...theme.typography.caption, color: theme.colors.primary, marginBottom: theme.spacing.xs, fontWeight: '600' },
+  msgProposalValue: { ...theme.typography.body, color: theme.colors.textPrimary, marginBottom: theme.spacing.sm },
+  msgProposalActions: { flexDirection: 'row', gap: theme.spacing.sm },
   msgSender: { ...theme.typography.captionBold, color: theme.colors.primary, marginBottom: 2 },
   msgText: { ...theme.typography.body, color: theme.colors.textPrimary },
   chatInputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.lg, paddingVertical: Platform.select({ web: theme.spacing.sm, default: theme.spacing.md }), borderTopWidth: 1, borderTopColor: theme.colors.borderLight, backgroundColor: theme.colors.surface, gap: theme.spacing.sm },

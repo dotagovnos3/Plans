@@ -5,14 +5,21 @@ import { theme } from '../theme';
 import { useEventsStore } from '../stores/eventsStore';
 import { CreatePlanForm } from './CreatePlanForm';
 import { formatDateShort } from '../utils/dates';
-import type { HomeStackParamList } from '../navigation/types';
+import type { HomeStackParamList, RootStackParamList } from '../navigation/types';
+import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'CreatePlanFromEvent'>;
+type NavType = CompositeNavigationProp<
+  NativeStackNavigationProp<HomeStackParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
-export const CreatePlanFromEventScreen = ({ route, navigation }: Props) => {
+export const CreatePlanFromEventScreen = ({ route }: { route: any }) => {
   const { eventId } = route.params;
   const events = useEventsStore((s) => s.events);
   const event = events.find((e) => e.id === eventId);
+  const navigation = useNavigation<NavType>();
 
   if (!event) return <View style={s.container} />;
 
@@ -23,7 +30,12 @@ export const CreatePlanFromEventScreen = ({ route, navigation }: Props) => {
         linkedEventTitle={event.title}
         linkedEventVenue={event.venue?.name}
         linkedEventTime={formatDateShort(event.starts_at)}
-        onDone={(_planId: string) => navigation.navigate('HomeFeed')}
+        onDone={(_planId: string) => {
+          (navigation as any).navigate('PlansTab', {
+            screen: 'PlanDetails',
+            params: { planId: _planId },
+          });
+        }}
       />
     </View>
   );

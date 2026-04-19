@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform, Alert } from 'react-native';
 import { theme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { usePlansStore } from '../stores/plansStore';
 import { useGroupsStore } from '../stores/groupsStore';
+import { useInvitationsStore } from '../stores/invitationsStore';
 import { ACTIVITY_LABELS, type ActivityType, type Plan } from '../types';
 import { mockUsers } from '../mocks';
 import { ScreenContainer } from '../components/ScreenContainer';
+
+const MAX_PARTICIPANTS = 15;
 
 interface FriendItem {
   id: string;
@@ -27,6 +30,7 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   const user = useAuthStore((s) => s.user);
   const addPlan = usePlansStore((s) => s.addPlan);
   const groups = useGroupsStore((s) => s.groups);
+  const addInvitation = useInvitationsStore((s) => s.addInvitation);
 
   const isFromEvent = !!linkedEventId;
 
@@ -74,6 +78,11 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
 
   const handleCreate = () => {
     if (!user || !title.trim()) return;
+    const selectedFriendIds = friends.filter((f) => f.selected).map((f) => f.id);
+    if (1 + selectedFriendIds.length > MAX_PARTICIPANTS) {
+      Alert.alert('Слишком много участников', `Максимум ${MAX_PARTICIPANTS} участников, включая вас`);
+      return;
+    }
 
     const participants = friends
       .filter((f) => f.selected)
@@ -114,6 +123,9 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
     };
 
     addPlan(plan);
+    selectedFriendIds.forEach((friendId) => {
+      addInvitation('plan', planId, user.id, friendId);
+    });
     onDone(planId);
   };
 
