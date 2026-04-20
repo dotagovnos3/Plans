@@ -30,7 +30,14 @@ export async function userRoutes(app: FastifyInstance) {
     if (username !== undefined) { sets.push(`username = $${idx}`); vals.push(username); idx++; }
     if (avatar_url !== undefined) { sets.push(`avatar_url = $${idx}`); vals.push(avatar_url); idx++; }
     if (sets.length === 0) return { user: (await query('SELECT * FROM users WHERE id = $1', [userId])).rows[0] };
-    const user = (await query(`UPDATE users SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, vals)).rows[0];
+    let user;
+    try {
+      user = (await query(`UPDATE users SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, vals)).rows[0];
+    } catch (err: any) {
+      if (err.code === '23505' && err.constraint?.includes('username'))
+        return reply.code(409).send({ code: 'USERNAME_TAKEN', message: 'Username already taken' });
+      throw err;
+    }
     return { user };
   });
 
