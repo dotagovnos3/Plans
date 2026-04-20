@@ -28,6 +28,8 @@ interface Props {
 export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVenue, linkedEventTime, onDone, preselectedGroupIds }: Props) => {
   const user = useAuthStore((s) => s.user);
   const apiCreatePlan = usePlansStore((s) => s.apiCreatePlan);
+  const planError = usePlansStore((s) => s.error);
+  const clearPlanError = usePlansStore((s) => s.clearError);
   const groups = useGroupsStore((s) => s.groups);
   const { friends: apiFriends, fetchFriends } = useFriendsStore();
 
@@ -58,6 +60,7 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   );
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(preselectedGroupIds?.[0] ?? null);
   const [step, setStep] = useState<'details' | 'people' | 'confirm'>(isFromEvent || !!preselectedGroupIds?.length ? 'people' : 'details');
+  const [submitting, setSubmitting] = useState(false);
 
   const toggleFriend = (id: string) => {
     setFriends((prev) => prev.map((f) => f.id === id ? { ...f, selected: !f.selected } : f));
@@ -78,13 +81,15 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   const selectedCount = friends.filter((f) => f.selected).length;
 
   const handleCreate = async () => {
-    if (!user || !title.trim()) return;
+    if (!user || !title.trim() || submitting) return;
     const selectedFriendIds = friends.filter((f) => f.selected).map((f) => f.id);
     if (1 + selectedFriendIds.length > MAX_PARTICIPANTS) {
       Alert.alert('Слишком много участников', `Максимум ${MAX_PARTICIPANTS} участников, включая вас`);
       return;
     }
 
+    setSubmitting(true);
+    clearPlanError();
     try {
       const apiPlanId = await apiCreatePlan({
         title: title.trim(),
@@ -100,6 +105,8 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
       onDone(apiPlanId);
     } catch {
       onDone('');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -214,9 +221,10 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
               </View>
             ))}
 
-            <TouchableOpacity style={s.createBtn} onPress={handleCreate}>
-              <Text style={s.createBtnText}>Создать план</Text>
+            <TouchableOpacity style={[s.createBtn, submitting && s.createBtnDisabled]} onPress={handleCreate} disabled={submitting}>
+              <Text style={s.createBtnText}>{submitting ? 'Создание...' : 'Создать план'}</Text>
             </TouchableOpacity>
+            {planError && <Text style={s.errorBanner}>{planError}</Text>}
           </ScrollView>
         )}
       </View>
@@ -266,5 +274,7 @@ const s = StyleSheet.create({
   summaryMeta: { ...theme.typography.caption, color: theme.colors.textSecondary, marginBottom: theme.spacing.xs },
   summaryMetaMuted: { ...theme.typography.caption, color: theme.colors.textTertiary, fontStyle: 'italic', marginBottom: theme.spacing.xs },
   createBtn: { backgroundColor: theme.colors.going, borderRadius: theme.borderRadius.md, paddingVertical: theme.spacing.xl, alignItems: 'center', marginTop: theme.spacing.xl, ...Platform.select({ web: { paddingVertical: theme.spacing.lg } }) },
-  createBtnText: { color: '#fff', fontWeight: '700', fontSize: 18, ...Platform.select({ web: { fontSize: 16 } }) },
+  createBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: 18, ...Platform.select({ web: { fontSize: 16 } }) },
+  createBtnDisabled: { opacity: 0.6 },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.error + '11', marginTop: theme.spacing.md },
 });

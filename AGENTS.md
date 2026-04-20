@@ -17,12 +17,15 @@
 | Action | Command |
 |--------|---------|
 | Install (frontend) | `$env:npm_config_cache="E:\npm-cache"; npm install --legacy-peer-deps` |
+| Install (backend) | `$env:npm_config_cache="E:\npm-cache"; npm install --legacy-peer-deps` (workdir: `E:\FEST\V1\backend`) |
+| DB migrate | `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\db\migrate.ts` (workdir: `E:\FEST\V1\backend`) |
+| DB seed | `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\db\seed.ts` (workdir: `E:\FEST\V1\backend`) |
 | Dev (web) | `npx expo start --web` → http://localhost:8081 |
 | Dev (mobile) | `npx expo start` |
-| Type check | `npx tsc --noEmit` |
+| Type check (frontend) | `npx tsc --noEmit` |
+| Type check (backend) | `npx tsc --noEmit` (workdir: `E:\FEST\V1\backend`) |
 | Smoke build | `npx expo export --platform web` |
-| Start backend | `$env:PORT="3001"; E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\index.ts` (workdir: `E:\FEST\V1\backend`) |
-| Re-seed DB | `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\db\seed.ts` (workdir: `E:\FEST\V1\backend`) |
+| Start backend | `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\index.ts` (workdir: `E:\FEST\V1\backend`) |
 
 No `npm test` script exists. No linter is configured — use `tsc --noEmit` as the verification gate. Always run it after code changes.
 
@@ -59,22 +62,36 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 |------|-----------|
 | `client.ts` | Base HTTP client, `camelize`, token management |
 | `auth.ts` | `POST /auth/otp/send`, `POST /auth/otp/verify`, `GET /auth/me` |
-| `events.ts` | `GET /events`, `GET /events/:id`, `POST/DELETE /events/:id/interest`, `POST/DELETE /events/:id/save` |
+| `events.ts` | `GET /events`, `POST/DELETE /events/:id/interest`, `POST/DELETE /events/:id/save` |
 | `plans.ts` | Full plan CRUD + proposals, votes, finalize/unfinalize, repeat, messages, invite participant |
 | `invitations.ts` | `GET /invitations`, `PATCH /invitations/:id` (accept/decline) |
 | `notifications.ts` | `GET /notifications`, `PATCH /notifications/:id/read`, `PATCH /notifications/read-all` |
 | `search.ts` | `GET /search/events` |
+| `ws.ts` | Singleton WS client: connect, disconnect, subscribe, unsubscribe, reconnect with exponential backoff, heartbeat/stale detection |
+| `wsHandler.ts` | Routes WS events (`plan.message.created`, `plan.proposal.created`, `plan.vote.changed`, `plan.finalized`, `plan.unfinalized`, `notification.created`) to stores |
 
-### Zustand stores (6)
+### WebSocket (realtime)
 
-`authStore`, `eventsStore`, `plansStore`, `groupsStore`, `notificationsStore`, `invitationsStore`
+- **Protocol**: `ws://localhost:3001/api/ws` — auth via JWT, subscribe/unsubscribe channels
+- **REST is sole source of truth** — WS is push-only, no transactional writes in WS handlers
+- **Channels**: `user:{userId}` (notifications), `plan:{planId}` (messages, proposals, votes, lifecycle)
+- **Frontend**: `ws.ts` singleton with reconnect + resync; `wsHandler.ts` routes to stores
+- **Dedup**: `pushMessage` uses `client_message_id` reconciliation + ID check; `pushProposal` uses ID check; `pushVote` filters optimistic votes
+- **Missing WS events**: `plan.cancelled`, `plan.completed`, participant changes do NOT emit WS — other participants must refresh manually
+
+### Zustand stores (7)
+
+`authStore`, `eventsStore`, `plansStore`, `groupsStore`, `notificationsStore`, `invitationsStore`, `friendsStore`
 
 - Cross-store access uses `OtherStore.getState()` — used in `invitationsStore` → `plansStore`.
 - All stores start empty (no mock data) and populate from API calls.
-- `authStore.verifyOtp` has a dev fallback to `mockUsers[5]` on auth failure.
+- All stores have `loading: boolean`, `error: string | null`, and `clearError()` fields.
 - `plansStore` is fully API-backed: `apiCreatePlan`, `apiFinalize`, `apiUnfinalize`, `apiCreateProposal`, `apiVote`, `apiUnvote`, `apiRepeat`, `apiSendMessage`, `apiFetchMessages`, `apiFetchProposals`, `apiInviteParticipant`.
 - `notificationsStore` has **no `addNotification`** — all notifications are created server-side only.
 - `invitationsStore` has **no `addInvitation`** — backend creates invitations atomically on plan creation / participant invite.
+- `invitationsStore` accept/decline use optimistic update with rollback on failure.
+- `eventsStore` toggleInterest/toggleSave use optimistic update with immutable rollback on failure.
+- `friendsStore` is fully API-backed via `GET /users/friends`.
 
 ### Plan lifecycle
 
@@ -92,7 +109,7 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 | `invitations.ts` | List + PATCH (accept with atomic participant creation + 15-limit FOR UPDATE lock) |
 | `groups.ts` | List, get, invite-only member add |
 | `notifications.ts` | List + mark read |
-| `search.ts` | `GET /search/events` with q/category/date pagination |
+| `ws.ts` | WebSocket route: auth, subscribe/unsubscribe, heartbeat (ping/pong) |
 
 ## Product constraints
 
@@ -116,11 +133,7 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 
 ## Mock-only areas (no backend endpoint yet)
 
-| Area | Where | Blocked by |
-|------|-------|------------|
-| Friends list | `CreatePlanForm.tsx`, `ProfileScreen.tsx` use `mockUsers` | No `GET /users/friends?status=accepted` |
-| Auth OTP fallback | `authStore.ts` falls back to `mockUsers[5]` | Dev convenience |
-| Groups store | `groupsStore.ts` still uses `mockGroups` | No API wiring for group list/member mutations |
+None — all stores are API-backed. `friendsStore` uses `GET /users/friends`.
 
 ## Gotchas
 

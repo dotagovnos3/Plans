@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform, Alert, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { usePlansStore } from '../stores/plansStore';
 import { useAuthStore } from '../stores/authStore';
 import { formatDateShort } from '../utils/dates';
-import { ACTIVITY_LABELS, type ActivityType, type Plan, type PlanProposal, type PlanParticipant, type Message, type ParticipantStatus } from '../types';
+import { ACTIVITY_LABELS, type Plan, type PlanProposal, type Message, type ParticipantStatus } from '../types';
 import { subscribe, unsubscribe } from '../api/ws';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
@@ -21,11 +21,15 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   const { planId } = route.params;
   const plans = usePlansStore((s) => s.plans);
   const messages = usePlansStore((s) => s.messages);
+  const planLoading = usePlansStore((s) => s.loading);
+  const planError = usePlansStore((s) => s.error);
   const { fetchPlan, apiUpdateParticipantStatus, apiRemoveParticipant, apiCancelPlan, apiCompletePlan, apiFinalize, apiUnfinalize, apiCreateProposal, apiVote, apiUnvote, apiRepeat, apiFetchMessages, apiSendMessage, apiInviteParticipant } = usePlansStore();
   const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'details' | 'chat'>('details');
   const [chatInput, setChatInput] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [repeating, setRepeating] = useState(false);
 
   React.useEffect(() => { fetchPlan(planId); }, [planId]);
   React.useEffect(() => { if (tab === 'chat') apiFetchMessages(planId); }, [tab, planId]);
@@ -36,15 +40,19 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   }, [planId]);
 
   const plan = plans.find((p) => p.id === planId);
-  if (!plan || !user) return <ScreenContainer><View style={s.inner}><EmptyState text="План не найден" /></View></ScreenContainer>;
+  if (!plan || !user) {
+    if (planLoading) return <ScreenContainer><View style={s.inner}><ActivityIndicator size="large" color={theme.colors.primary} style={s.loader} /></View></ScreenContainer>;
+    return <ScreenContainer><View style={s.inner}><EmptyState text={planError || 'План не найден'} /></View></ScreenContainer>;
+  }
 
   const isCreator = plan.creator_id === user.id;
   const myParticipation = plan.participants?.find((p) => p.user_id === user.id);
   const planMessages = messages[planId] || [];
 
   const handleSend = () => {
-    if (!chatInput.trim()) return;
-    apiSendMessage(planId, chatInput.trim());
+    if (!chatInput.trim() || sending) return;
+    setSending(true);
+    apiSendMessage(planId, chatInput.trim()).finally(() => setSending(false));
     setChatInput('');
   };
 
@@ -72,7 +80,10 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   };
 
   const handleRepeat = async () => {
+    if (repeating) return;
+    setRepeating(true);
     const newId = await apiRepeat(planId);
+    setRepeating(false);
     if (newId) navigation.replace('PlanDetails', { planId: newId });
   };
 
@@ -84,9 +95,10 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   return (
     <ScreenContainer>
       <View style={s.inner}>
-        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backText}>← Назад</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={s.backText}>← Назад</Text>
+          </TouchableOpacity>
+          {planError && <Text style={s.errorBanner}>{planError}</Text>}
         <View style={s.headerRow}>
           <Text style={s.title}>{plan.title}</Text>
           <Text style={s.activity}>{ACTIVITY_LABELS[plan.activity_type]}</Text>
@@ -102,9 +114,9 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
         </View>
 
         {tab === 'details' ? (
-          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={apiFinalize} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
+          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={apiFinalize} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} repeating={repeating} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
         ) : (
-          <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} planId={planId} onVote={apiVote} onUnvote={apiUnvote} userId={user.id} />
+          <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} sending={sending} planId={planId} onVote={apiVote} onUnvote={apiUnvote} userId={user.id} />
         )}
 
         <Modal visible={showInviteModal} transparent animationType="slide" onRequestClose={() => setShowInviteModal(false)}>
@@ -127,7 +139,7 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   );
 };
 
-const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, onFinalize, onUnfinalize, onCancel, onComplete, onAddProposal, onRepeat, onInvite, onRemove, onLeave }: {
+const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, onFinalize, onUnfinalize, onCancel, onComplete, onAddProposal, onRepeat, repeating, onInvite, onRemove, onLeave }: {
   plan: Plan; isCreator: boolean; myStatus: ParticipantStatus;
   onSetStatus: (s: ParticipantStatus) => void;
   onVote: (planId: string, proposalId: string) => Promise<void>;
@@ -138,6 +150,7 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
   onComplete: (planId: string) => Promise<void>;
   onAddProposal: (planId: string, data: { type: string; value_text: string; value_lat?: number; value_lng?: number; value_datetime?: string }) => Promise<void>;
   onRepeat: () => void;
+  repeating: boolean;
   onInvite: () => void;
   onRemove?: (userId: string) => void;
   onLeave?: () => void;
@@ -147,6 +160,7 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
   const [propType, setPropType] = useState<'place' | 'time'>('place');
   const [propValue, setPropValue] = useState('');
   const [propTimeValue, setPropTimeValue] = useState('');
+  const [propSubmitting, setPropSubmitting] = useState(false);
 
   const statusBtns: { key: ParticipantStatus; label: string }[] = [
     { key: 'going', label: 'Иду' },
@@ -164,11 +178,13 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
   const myVotesForTime = timeProposals.filter((pr) => pr.votes?.some((v) => v.voter_id === user?.id)).length;
 
   const handleAddProposal = () => {
-    if (!user) return;
+    if (!user || propSubmitting) return;
     if (propType === 'place' && propValue.trim()) {
-      onAddProposal(plan.id, { type: 'place', value_text: propValue.trim() });
+      setPropSubmitting(true);
+      onAddProposal(plan.id, { type: 'place', value_text: propValue.trim() }).finally(() => setPropSubmitting(false));
     } else if (propType === 'time' && propTimeValue.trim()) {
-      onAddProposal(plan.id, { type: 'time', value_text: propTimeValue.trim(), value_datetime: propTimeValue.trim() });
+      setPropSubmitting(true);
+      onAddProposal(plan.id, { type: 'time', value_text: propTimeValue.trim(), value_datetime: propTimeValue.trim() }).finally(() => setPropSubmitting(false));
     }
     setPropValue('');
     setPropTimeValue('');
@@ -306,8 +322,8 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
         )}
 
         {isCompleted && (
-          <TouchableOpacity style={s.repeatBtn} onPress={onRepeat}>
-            <Text style={s.repeatBtnText}>Повторить</Text>
+          <TouchableOpacity style={[s.repeatBtn, repeating && s.btnDisabled]} onPress={onRepeat} disabled={repeating}>
+            <Text style={s.repeatBtnText}>{repeating ? '...' : 'Повторить'}</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -325,8 +341,8 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
               <TouchableOpacity style={s.modalCancelBtn} onPress={() => setPropModalVisible(false)}>
                 <Text style={s.modalCancelText}>Отмена</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.modalSubmitBtn} onPress={handleAddProposal}>
-                <Text style={s.modalSubmitText}>Предложить</Text>
+              <TouchableOpacity style={[s.modalSubmitBtn, propSubmitting && s.btnDisabled]} onPress={handleAddProposal} disabled={propSubmitting}>
+                <Text style={s.modalSubmitText}>{propSubmitting ? '...' : 'Предложить'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -370,7 +386,7 @@ const ProposalCard = ({ proposal, userId, planId, onVote, onUnvote, isCreator, o
   );
 };
 
-const ChatTab = ({ messages: msgs, input, setInput, onSend, planId, onVote, onUnvote, userId }: { messages: Message[]; input: string; setInput: (v: string) => void; onSend: () => void; planId: string; onVote: (planId: string, proposalId: string) => Promise<void>; onUnvote: (planId: string, proposalId: string) => Promise<void>; userId: string }) => {
+const ChatTab = ({ messages: msgs, input, setInput, onSend, sending, planId, onVote, onUnvote, userId }: { messages: Message[]; input: string; setInput: (v: string) => void; onSend: () => void; sending: boolean; planId: string; onVote: (planId: string, proposalId: string) => Promise<void>; onUnvote: (planId: string, proposalId: string) => Promise<void>; userId: string }) => {
   const plans = usePlansStore((s) => s.plans);
   const plan = plans.find((p) => p.id === planId);
 
@@ -414,8 +430,8 @@ const ChatTab = ({ messages: msgs, input, setInput, onSend, planId, onVote, onUn
       }} contentContainerStyle={s.chatList} inverted ListEmptyComponent={<EmptyState text="Нет сообщений" />} />
       <View style={s.chatInputRow}>
         <TextInput style={s.chatInput} placeholder="Сообщение..." placeholderTextColor={theme.colors.textTertiary} value={input} onChangeText={setInput} />
-        <TouchableOpacity style={s.sendBtn} onPress={onSend}>
-          <Text style={s.sendBtnText}>→</Text>
+        <TouchableOpacity style={[s.sendBtn, sending && s.btnDisabled]} onPress={onSend} disabled={sending}>
+          <Text style={s.sendBtnText}>{sending ? '...' : '→'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -466,7 +482,7 @@ const s = StyleSheet.create({
   pickBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm },
   pickBtnText: { color: theme.colors.textInverse, fontWeight: '600', fontSize: 13 },
   finalizeBtn: { backgroundColor: theme.colors.going, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), alignItems: 'center', marginBottom: theme.spacing.md },
-  finalizeBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  finalizeBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: 16 },
   unfinalizeBtn: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md },
   unfinalizeBtnText: { color: theme.colors.textSecondary, fontWeight: '600', fontSize: 15 },
   completeBtn: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border, marginBottom: theme.spacing.md },
@@ -478,7 +494,7 @@ const s = StyleSheet.create({
   repeatBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.xl }), alignItems: 'center', marginTop: theme.spacing.lg },
   repeatBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: Platform.select({ web: 16, default: 18 }) },
   meta: { ...theme.typography.caption, color: theme.colors.textSecondary, marginBottom: theme.spacing.xs },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: theme.colors.overlay },
   modalContent: { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.borderRadius.xxl, borderTopRightRadius: theme.borderRadius.xxl, padding: theme.spacing.xxl, ...Platform.select({ web: { padding: theme.spacing.lg } }) },
   modalTitle: { ...theme.typography.h3, color: theme.colors.textPrimary, marginBottom: theme.spacing.lg },
   modalInput: { backgroundColor: theme.colors.background, borderRadius: theme.borderRadius.md, padding: theme.spacing.lg, fontSize: 16, color: theme.colors.textPrimary, borderWidth: 1, borderColor: theme.colors.borderLight, marginBottom: theme.spacing.lg },
@@ -507,4 +523,7 @@ const s = StyleSheet.create({
   chatInput: { flex: 1, backgroundColor: theme.colors.background, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: Platform.select({ web: theme.spacing.sm, default: theme.spacing.md }), fontSize: 15, color: theme.colors.textPrimary },
   sendBtn: { backgroundColor: theme.colors.primary, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   sendBtnText: { color: theme.colors.textInverse, fontSize: 18, fontWeight: '700' },
+  loader: { marginTop: 100 },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.sm, backgroundColor: theme.colors.error + '11', marginHorizontal: theme.spacing.lg },
+  btnDisabled: { opacity: 0.5 },
 });

@@ -4,6 +4,9 @@ import * as usersApi from '../api/users';
 
 interface FriendsState {
   friends: User[];
+  loading: boolean;
+  error: string | null;
+  clearError: () => void;
   fetchFriends: () => Promise<void>;
   addFriend: (friendId: string) => Promise<void>;
   removeFriend: (friendId: string) => Promise<void>;
@@ -11,12 +14,19 @@ interface FriendsState {
 
 export const useFriendsStore = create<FriendsState>((set, get) => ({
   friends: [],
+  loading: false,
+  error: null,
+
+  clearError: () => set({ error: null }),
 
   fetchFriends: async () => {
+    set({ loading: true, error: null });
     try {
       const friends = await usersApi.fetchFriends('accepted');
-      set({ friends });
-    } catch {}
+      set({ friends, loading: false });
+    } catch (e: any) {
+      set({ loading: false, error: e?.message || 'Ошибка загрузки друзей' });
+    }
   },
 
   addFriend: async (friendId) => {
@@ -24,13 +34,17 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       await usersApi.addFriend(friendId);
       const friend = await usersApi.fetchUser(friendId);
       set((s) => ({ friends: [...s.friends, friend] }));
-    } catch {}
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка добавления друга' });
+    }
   },
 
   removeFriend: async (friendId) => {
     try {
       await usersApi.removeFriend(friendId);
       set((s) => ({ friends: s.friends.filter((f) => f.id !== friendId) }));
-    } catch {}
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка удаления друга' });
+    }
   },
 }));

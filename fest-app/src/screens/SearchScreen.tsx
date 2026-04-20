@@ -23,6 +23,7 @@ export const SearchScreen = () => {
   const [results, setResults] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [query, setQuery] = useState('');
   const [catFilter, setCatFilter] = useState<EventCategory | null>(null);
@@ -30,6 +31,7 @@ export const SearchScreen = () => {
 
   const doSearch = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params: Parameters<typeof searchEvents>[0] = {};
       if (query.trim()) params.q = query.trim();
@@ -65,9 +67,10 @@ export const SearchScreen = () => {
       const res = await searchEvents({ ...params, limit: 50 });
       setResults(res.events);
       setTotal(res.total);
-    } catch {
+    } catch (e: any) {
       setResults([]);
       setTotal(0);
+      setError(e?.message || 'Ошибка поиска');
     } finally {
       setLoading(false);
       setSearched(true);
@@ -125,6 +128,7 @@ export const SearchScreen = () => {
             </TouchableOpacity>
           )} />
         </View>
+        {error && <Text style={s.errorBanner}>{error}</Text>}
         {searched && (
           <Text style={s.resultCount}>{total} мероприяти{total === 1 ? 'е' : total < 5 ? 'я' : 'й'}</Text>
         )}
@@ -151,4 +155,5 @@ const s = StyleSheet.create({
   resultTitle: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, marginBottom: 2 },
   resultVenue: { ...theme.typography.caption, color: theme.colors.textSecondary, marginBottom: 2 },
   resultMeta: { ...theme.typography.small, color: theme.colors.textTertiary },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.error + '11' },
 });

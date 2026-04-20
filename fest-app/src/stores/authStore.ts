@@ -11,6 +11,8 @@ interface AuthState {
   otpSent: boolean;
   phone: string;
   loading: boolean;
+  error: string | null;
+  clearError: () => void;
   sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (code: string) => Promise<void>;
   logout: () => void;
@@ -25,20 +27,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   otpSent: false,
   phone: '',
   loading: false,
+  error: null,
+
+  clearError: () => set({ error: null }),
 
   sendOtp: async (phone) => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       await authApi.sendOtp(phone);
       set({ phone, otpSent: true, loading: false });
-    } catch {
-      set({ loading: false });
+    } catch (e: any) {
+      set({ loading: false, error: e?.message || 'Ошибка отправки кода' });
     }
   },
 
   verifyOtp: async (code) => {
     const phone = get().phone;
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const res = await authApi.verifyOtp(phone, code);
       if (typeof localStorage !== 'undefined') {
@@ -48,8 +53,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: res.user, isAuthenticated: true, otpSent: false, loading: false });
       initWsHandler();
       startWs();
-    } catch {
-      set({ loading: false });
+    } catch (e: any) {
+      set({ loading: false, error: e?.message || 'Неверный код' });
     }
   },
 

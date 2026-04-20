@@ -33,7 +33,7 @@ Frozen scope. Contract-first. No product expansion.
 
 | Capability | Reason |
 |---|---|
-| WebSocket real-time (chat streaming, vote updates) | Requires infra; Slice 4 |
+| WebSocket real-time (chat, votes, proposals, notifications) | Implemented — push-only, REST is source of truth |
 | Push notifications | Requires FCM/APNs setup |
 | Event time change → auto-update linked plans | Requires event ingestion pipeline |
 | Event cancelled → banner in linked plans | Requires event ingestion pipeline |
@@ -668,9 +668,9 @@ GET /plans/:id/messages
   response: 200 { messages: MessageWithSender[] }
 
 POST /plans/:id/messages
-  body: { text: string }
+  body: { text: string, client_message_id?: string }
   response: 201 { message: MessageWithSender }
-  side-effects: if realtime, broadcast to plan channel
+  side-effects: broadcasts `plan.message.created` to plan channel
 ```
 
 ### Invitations
@@ -836,7 +836,7 @@ Tables: plan_proposals, votes
 
 Side-effects: proposal creates notification + proposal_card message. Finalize sets confirmed data + supersedes losers + notification. Vote constraint: max 2 per type per user per plan.
 
-### Slice 4: Chat + realtime
+### Slice 4: Chat + realtime — DONE
 **Goal**: Messages work. WebSocket pushes updates.
 
 Endpoints:
@@ -845,12 +845,18 @@ Endpoints:
 
 Tables: messages (already exists)
 
-Real-time channels:
-- `/ws/plans/:id` — chat messages, vote updates, proposal creation, lifecycle changes
-- `/ws/user/:id` — notifications, invitation updates
+Real-time implementation:
+- Backend: `@fastify/websocket` at `/api/ws` — auth via JWT, subscribe/unsubscribe channels
+- Channels: `user:{userId}` (notifications), `plan:{planId}` (messages, proposals, votes, lifecycle)
+- WS events: `plan.message.created`, `plan.proposal.created`, `plan.vote.changed`, `plan.finalized`, `plan.unfinalized`, `notification.created`
+- Frontend: singleton WS client with reconnect + resync + heartbeat/stale detection
+- Dedup: `client_message_id` reconciliation for messages, ID check for proposals, optimistic vote filtering
+- REST remains source of truth — WS is push-only, no transactional writes
+
+Missing WS events (not yet emitted): `plan.cancelled`, `plan.completed`, participant add/remove/update
 
 Optimistic message send with server confirmation. No message edit/delete in MVP.
 
 ---
 
-**Total: 4 slices. Each slice is independently shippable. Slice 1 alone makes the app functional for browsing. Slice 2 unlocks the core loop. Slice 3 completes coordination. Slice 4 adds live feel.**
+**Total: 4 slices. All 4 implemented.**

@@ -1,4 +1,4 @@
-import { query, pool } from './pool.js';
+import { query } from './pool.js';
 
 let _emit: ((channel: string, event: string, payload: object) => void) | null = null;
 

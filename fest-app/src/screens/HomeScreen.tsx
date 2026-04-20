@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, FlatList, TouchableOpacity, Text, Image, StyleSheet, Platform } from 'react-native';
+import { View, FlatList, TouchableOpacity, Text, Image, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,7 +19,7 @@ type NavType = CompositeNavigationProp<
 >;
 
 export const HomeScreen = () => {
-  const { events, interestedIds, savedIds, categoryFilter, toggleInterest, toggleSave, setCategoryFilter, fetchEvents } = useEventsStore();
+  const { events, interestedIds, savedIds, categoryFilter, loading, error, toggleInterest, toggleSave, setCategoryFilter, fetchEvents } = useEventsStore();
   const navigation = useNavigation<NavType>();
   const unread = useNotificationsStore((s) => s.unreadCount);
 
@@ -81,7 +81,12 @@ export const HomeScreen = () => {
             </TouchableOpacity>
           )} />
         </View>
-        <FlatList data={filtered} keyExtractor={(e) => e.id} renderItem={renderItem} contentContainerStyle={s.list} showsVerticalScrollIndicator={false} ListEmptyComponent={<EmptyState text="Нет мероприятий" />} />
+        {error && <Text style={s.errorBanner}>{error}</Text>}
+        {loading && filtered.length === 0 ? (
+          <View style={s.loader}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
+        ) : (
+        <FlatList data={filtered} keyExtractor={(e) => e.id} renderItem={renderItem} contentContainerStyle={s.list} showsVerticalScrollIndicator={false} refreshing={loading && filtered.length > 0} onRefresh={fetchEvents} ListEmptyComponent={<EmptyState text="Нет мероприятий" />} />
+        )}
       </View>
     </ScreenContainer>
   );
@@ -94,7 +99,7 @@ const s = StyleSheet.create({
   bell: { position: 'relative', padding: theme.spacing.sm },
   bellIcon: { fontSize: 22 },
   badge: { position: 'absolute', top: 2, right: 2, backgroundColor: theme.colors.accent, borderRadius: theme.borderRadius.full, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  badgeText: { color: theme.colors.textInverse, fontSize: 11, fontWeight: '700' },
   chipsRow: { paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md },
   chip: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, marginRight: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border },
   chipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
@@ -116,4 +121,6 @@ const s = StyleSheet.create({
   saveIcon: { fontSize: 20, color: theme.colors.textTertiary, paddingHorizontal: theme.spacing.sm },
   planBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, marginLeft: 'auto' },
   planBtnText: { color: theme.colors.textInverse, fontWeight: '600', fontSize: 14 },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.error + '11' },
 });

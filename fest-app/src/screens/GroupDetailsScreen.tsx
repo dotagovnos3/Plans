@@ -6,7 +6,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useGroupsStore } from '../stores/groupsStore';
 import { usePlansStore } from '../stores/plansStore';
 import { formatDateShort } from '../utils/dates';
-import { ACTIVITY_LABELS, type ActivityType } from '../types';
+import { ACTIVITY_LABELS } from '../types';
+import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
 import type { PlansStackParamList } from '../navigation/types';
 
@@ -18,10 +19,11 @@ export const GroupDetailsScreen = ({ route, navigation }: Props) => {
   const plans = usePlansStore((s) => s.plans);
   const apiCreatePlan = usePlansStore((s) => s.apiCreatePlan);
   const user = useAuthStore((s) => s.user);
+  const [creatingPlan, setCreatingPlan] = React.useState(false);
 
   const group = groups.find((g) => g.id === groupId);
 
-  if (!group) return <ScreenContainer><View style={s.inner}><Text style={s.empty}>Группа не найдена</Text></View></ScreenContainer>;
+  if (!group) return <ScreenContainer><View style={s.inner}><EmptyState text="Группа не найдена" /></View></ScreenContainer>;
 
   const groupMemberIds = new Set((group.members ?? []).map((m) => m.user_id));
   const groupPlans = plans.filter((p) =>
@@ -31,16 +33,19 @@ export const GroupDetailsScreen = ({ route, navigation }: Props) => {
   const pastPlans = groupPlans.filter((p) => p.lifecycle_state === 'completed');
 
   const handleCreatePlanWithGroup = async () => {
-    if (!user) return;
-    const memberIds = (group.members ?? []).filter((m) => m.user_id !== user.id).map((m) => m.user_id);
+    if (!user || creatingPlan) return;
+    const memberIds = (group!.members ?? []).filter((m) => m.user_id !== user.id).map((m) => m.user_id);
+    setCreatingPlan(true);
     try {
       const planId = await apiCreatePlan({
-        title: `План: ${group.name}`,
+        title: `План: ${group!.name}`,
         activity_type: 'other',
         participant_ids: memberIds,
       });
       if (planId) navigation.replace('PlanDetails', { planId });
-    } catch {}
+    } catch {} finally {
+      setCreatingPlan(false);
+    }
   };
 
   return (
@@ -87,8 +92,8 @@ export const GroupDetailsScreen = ({ route, navigation }: Props) => {
           </>
         )}
 
-        <TouchableOpacity style={s.createBtn} onPress={handleCreatePlanWithGroup}>
-          <Text style={s.createBtnText}>Создать план с группой</Text>
+        <TouchableOpacity style={[s.createBtn, creatingPlan && s.btnDisabled]} onPress={handleCreatePlanWithGroup} disabled={creatingPlan}>
+          <Text style={s.createBtnText}>{creatingPlan ? 'Создание...' : 'Создать план с группой'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </ScreenContainer>
@@ -114,5 +119,5 @@ const s = StyleSheet.create({
   planMeta: { ...theme.typography.caption, color: theme.colors.textTertiary },
   createBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.xl }), alignItems: 'center', marginTop: theme.spacing.xl },
   createBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: Platform.select({ web: 15, default: 16 }) },
-  empty: { ...theme.typography.body, color: theme.colors.textTertiary, textAlign: 'center', marginTop: 100 },
+  btnDisabled: { opacity: 0.5 },
 });

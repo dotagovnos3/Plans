@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { theme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { ScreenContainer } from '../components/ScreenContainer';
@@ -8,19 +8,18 @@ export const AuthScreen = () => {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const { sendOtp, verifyOtp } = useAuthStore();
+  const { sendOtp, verifyOtp, loading, error, clearError } = useAuthStore();
 
   const handleSendOtp = () => {
-    if (phone.length >= 10) {
-      sendOtp(phone);
-      setOtpSent(true);
-    }
+    if (loading || phone.length < 10) return;
+    clearError();
+    sendOtp(phone).then(() => setOtpSent(true)).catch(() => {});
   };
 
   const handleVerify = () => {
-    if (code.length >= 4) {
-      verifyOtp(code);
-    }
+    if (loading || code.length < 4) return;
+    clearError();
+    verifyOtp(code);
   };
 
   return (
@@ -28,6 +27,8 @@ export const AuthScreen = () => {
       <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Text style={s.title}>Планы?</Text>
         <Text style={s.subtitle}>Вход в аккаунт</Text>
+
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
 
         {!otpSent ? (
           <>
@@ -39,9 +40,10 @@ export const AuthScreen = () => {
               onChangeText={setPhone}
               keyboardType="phone-pad"
               autoFocus
+              editable={!loading}
             />
-            <TouchableOpacity style={s.button} onPress={handleSendOtp}>
-              <Text style={s.buttonText}>Получить код</Text>
+            <TouchableOpacity style={[s.button, loading && s.buttonDisabled]} onPress={handleSendOtp} disabled={loading}>
+              {loading ? <ActivityIndicator color={theme.colors.textInverse} /> : <Text style={s.buttonText}>Получить код</Text>}
             </TouchableOpacity>
           </>
         ) : (
@@ -54,9 +56,10 @@ export const AuthScreen = () => {
               onChangeText={setCode}
               keyboardType="number-pad"
               autoFocus
+              editable={!loading}
             />
-            <TouchableOpacity style={s.button} onPress={handleVerify}>
-              <Text style={s.buttonText}>Войти</Text>
+            <TouchableOpacity style={[s.button, loading && s.buttonDisabled]} onPress={handleVerify} disabled={loading}>
+              {loading ? <ActivityIndicator color={theme.colors.textInverse} /> : <Text style={s.buttonText}>Войти</Text>}
             </TouchableOpacity>
           </>
         )}
@@ -71,5 +74,7 @@ const s = StyleSheet.create({
   subtitle: { ...theme.typography.body, color: theme.colors.textSecondary, textAlign: 'center', marginBottom: theme.spacing.xxl },
   input: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.borderRadius.md, padding: theme.spacing.lg, fontSize: 17, marginBottom: theme.spacing.lg, color: theme.colors.textPrimary, ...Platform.select({ web: { padding: theme.spacing.md } }) },
   button: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, padding: theme.spacing.lg, alignItems: 'center', ...Platform.select({ web: { padding: theme.spacing.md } }) },
+  buttonDisabled: { opacity: 0.6 },
   buttonText: { color: theme.colors.textInverse, fontSize: 17, fontWeight: '600', ...Platform.select({ web: { fontSize: 16 } }) },
+  errorText: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', marginBottom: theme.spacing.md },
 });

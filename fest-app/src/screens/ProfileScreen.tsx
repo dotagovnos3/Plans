@@ -1,18 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Platform, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Platform, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { theme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useFriendsStore } from '../stores/friendsStore';
 import { useEventsStore } from '../stores/eventsStore';
+import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
-import type { Event, User } from '../types';
+
 
 export const ProfileScreen = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { events, savedIds } = useEventsStore();
-  const { friends, fetchFriends } = useFriendsStore();
+  const { friends, loading: friendsLoading, error: friendsError, fetchFriends } = useFriendsStore();
   const savedEvents = events.filter((e) => savedIds.has(e.id));
   const [showSaved, setShowSaved] = React.useState(false);
   const [showFriends, setShowFriends] = React.useState(false);
@@ -41,7 +42,7 @@ export const ProfileScreen = () => {
               <Text style={s.savedMeta}>{item.venue?.name}</Text>
             </View>
           </TouchableOpacity>
-        )} contentContainerStyle={s.list} ListEmptyComponent={<Text style={s.emptyText}>Ничего не сохранено</Text>} />
+        )} contentContainerStyle={s.list} ListEmptyComponent={<EmptyState text="Ничего не сохранено" />} />
       </View>
     </ScreenContainer>
   );
@@ -53,6 +54,8 @@ export const ProfileScreen = () => {
           <Text style={s.backText}>← Назад</Text>
         </TouchableOpacity>
         <Text style={s.header}>Друзья</Text>
+        {friendsError && <Text style={s.errorBanner}>{friendsError}</Text>}
+        {friendsLoading ? <ActivityIndicator size="large" color={theme.colors.primary} style={s.loader} /> : (
         <FlatList data={friends} keyExtractor={(u) => u.id} renderItem={({ item }) => (
           <View style={s.friendRow}>
             <View style={s.friendAvatar}><Text style={s.friendLetter}>{item.name[0]}</Text></View>
@@ -61,7 +64,8 @@ export const ProfileScreen = () => {
               <Text style={s.friendUsername}>@{item.username}</Text>
             </View>
           </View>
-        )} contentContainerStyle={s.list} ListEmptyComponent={<Text style={s.emptyText}>Нет друзей</Text>} />
+        )} contentContainerStyle={s.list} ListEmptyComponent={<EmptyState text="Нет друзей" />} />
+        )}
       </View>
     </ScreenContainer>
   );
@@ -117,7 +121,7 @@ const s = StyleSheet.create({
   editRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.xs },
   editInput: { ...theme.typography.h3, color: theme.colors.textPrimary, borderBottomWidth: 1, borderBottomColor: theme.colors.primary, paddingBottom: 2, minWidth: 120, textAlign: 'center' },
   editSaveBtn: { backgroundColor: theme.colors.primary, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  editSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  editSaveBtnText: { color: theme.colors.textInverse, fontSize: 16, fontWeight: '700' },
   menu: { width: '100%', paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm },
   menuItem: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, padding: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), ...theme.shadows.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   menuText: { ...theme.typography.body, color: theme.colors.textPrimary },
@@ -132,11 +136,12 @@ const s = StyleSheet.create({
   savedBody: { flex: 1, padding: theme.spacing.md, justifyContent: 'center' },
   savedTitle: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, marginBottom: 2 },
   savedMeta: { ...theme.typography.caption, color: theme.colors.textTertiary },
-  emptyText: { ...theme.typography.body, color: theme.colors.textTertiary, textAlign: 'center', marginTop: 40 },
   friendRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.md, padding: theme.spacing.md, marginBottom: theme.spacing.sm },
   friendAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.primaryLight + '33', alignItems: 'center', justifyContent: 'center', marginRight: theme.spacing.md },
   friendLetter: { fontSize: 18, fontWeight: '700', color: theme.colors.primary },
   friendInfo: { flex: 1 },
   friendName: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, marginBottom: 2 },
   friendUsername: { ...theme.typography.caption, color: theme.colors.textTertiary },
+  loader: { marginTop: 40 },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.sm, backgroundColor: theme.colors.error + '11', marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md },
 });

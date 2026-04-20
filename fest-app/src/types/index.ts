@@ -54,20 +54,6 @@ export type EventCategory =
   | 'workshop'
   | 'other';
 
-export interface EventInterest {
-  id: string;
-  user_id: string;
-  event_id: string;
-  created_at: string;
-}
-
-export interface SavedEvent {
-  id: string;
-  user_id: string;
-  event_id: string;
-  created_at: string;
-}
-
 export type PlanLifecycle = 'active' | 'finalized' | 'completed' | 'cancelled';
 export type PlaceStatus = 'confirmed' | 'proposed' | 'undecided';
 export type TimeStatus = 'confirmed' | 'proposed' | 'undecided';

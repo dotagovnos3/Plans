@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { usePlansStore } from '../stores/plansStore';
@@ -21,12 +21,31 @@ const STATUS_COLORS: Record<string, string> = { going: theme.colors.going, think
 export const PlansHubScreen = ({ navigation }: Props) => {
   const [section, setSection] = React.useState<HubSection>('active');
   const plans = usePlansStore((s) => s.plans);
+  const plansLoading = usePlansStore((s) => s.loading);
+  const plansError = usePlansStore((s) => s.error);
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const groups = useGroupsStore((s) => s.groups);
-  const { invitations, accept, decline, fetchInvitations } = useInvitationsStore();
+  const groupsLoading = useGroupsStore((s) => s.loading);
+  const { invitations, loading: invLoading, error: invError, accept, decline, fetchInvitations } = useInvitationsStore();
   const fetchMyPlans = usePlansStore((s) => s.fetchMyPlans);
+  const [accepting, setAccepting] = React.useState<string | null>(null);
+  const [declining, setDeclining] = React.useState<string | null>(null);
 
   React.useEffect(() => { fetchMyPlans(); fetchInvitations(); }, []);
+
+  const handleAccept = async (id: string) => {
+    if (accepting) return;
+    setAccepting(id);
+    await accept(id);
+    setAccepting(null);
+  };
+
+  const handleDecline = async (id: string) => {
+    if (declining) return;
+    setDeclining(id);
+    await decline(id);
+    setDeclining(null);
+  };
 
   const pendingInvitations = invitations.filter((i) => i.status === 'pending');
   const activePlans = plans.filter((p) => p.lifecycle_state === 'active' || p.lifecycle_state === 'finalized');
@@ -52,6 +71,12 @@ export const PlansHubScreen = ({ navigation }: Props) => {
           ))}
         </View>
 
+        {section === 'active' && plansError && <Text style={s.errorBanner}>{plansError}</Text>}
+        {section === 'invitations' && invError && <Text style={s.errorBanner}>{invError}</Text>}
+        {(section === 'active' && plansLoading && activePlans.length === 0) || (section === 'invitations' && invLoading && pendingInvitations.length === 0) || (section === 'groups' && groupsLoading && groups.length === 0) ? (
+          <View style={s.loader}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
+        ) : (
+        <>
         {section === 'active' && (
           <FlatList data={activePlans} keyExtractor={(p) => p.id} renderItem={({ item }) => (
             <PlanCard plan={item} userId={userId} onPress={() => navigation.navigate('PlanDetails', { planId: item.id })} />
@@ -59,7 +84,7 @@ export const PlansHubScreen = ({ navigation }: Props) => {
         )}
         {section === 'invitations' && (
           <FlatList data={pendingInvitations} keyExtractor={(i) => i.id} renderItem={({ item }) => (
-            <InvitationCard invitation={item} onAccept={() => accept(item.id)} onDecline={() => decline(item.id)} onOpen={() => {
+            <InvitationCard invitation={item} onAccept={() => handleAccept(item.id)} onDecline={() => handleDecline(item.id)} accepting={accepting === item.id} declining={declining === item.id} onOpen={() => {
               if (item.type === 'plan' && item.plan) navigation.navigate('PlanDetails', { planId: item.target_id });
               if (item.type === 'group') navigation.navigate('GroupDetails', { groupId: item.target_id });
             }} />
@@ -74,6 +99,8 @@ export const PlansHubScreen = ({ navigation }: Props) => {
           <FlatList data={pastPlans} keyExtractor={(p) => p.id} renderItem={({ item }) => (
             <PlanCard plan={item} userId={userId} onPress={() => navigation.navigate('PlanDetails', { planId: item.id })} />
           )} contentContainerStyle={s.list} ListEmptyComponent={<EmptyState text="Нет прошедших планов" />} />
+        )}
+        </>
         )}
       </View>
     </ScreenContainer>
@@ -98,13 +125,13 @@ const PlanCard = ({ plan, userId, onPress }: { plan: Plan; userId: string; onPre
   );
 };
 
-const InvitationCard = ({ invitation, onAccept, onDecline, onOpen }: { invitation: Invitation; onAccept: () => void; onDecline: () => void; onOpen: () => void }) => (
+const InvitationCard = ({ invitation, onAccept, onDecline, accepting, declining, onOpen }: { invitation: Invitation; onAccept: () => void; onDecline: () => void; accepting: boolean; declining: boolean; onOpen: () => void }) => (
   <TouchableOpacity style={s.card} onPress={onOpen} activeOpacity={0.7}>
     <Text style={s.cardTitle}>{invitation.type === 'plan' ? (invitation.plan?.title ?? 'Приглашение в план') : 'Приглашение в группу'}</Text>
     <Text style={s.cardMeta}>{invitation.type === 'plan' ? 'Приглашение в план' : 'Приглашение в группу'}</Text>
     <View style={s.inviteActions}>
-      <TouchableOpacity style={s.acceptBtn} onPress={onAccept}><Text style={s.acceptBtnText}>Принять</Text></TouchableOpacity>
-      <TouchableOpacity style={s.declineBtn} onPress={onDecline}><Text style={s.declineBtnText}>Отклонить</Text></TouchableOpacity>
+      <TouchableOpacity style={[s.acceptBtn, accepting && s.btnDisabled]} onPress={onAccept} disabled={accepting}><Text style={s.acceptBtnText}>{accepting ? '...' : 'Принять'}</Text></TouchableOpacity>
+      <TouchableOpacity style={[s.declineBtn, declining && s.btnDisabled]} onPress={onDecline} disabled={declining}><Text style={s.declineBtnText}>{declining ? '...' : 'Отклонить'}</Text></TouchableOpacity>
     </View>
   </TouchableOpacity>
 );
@@ -125,7 +152,7 @@ const s = StyleSheet.create({
   tabText: { ...theme.typography.caption, color: theme.colors.textSecondary },
   tabTextActive: { color: theme.colors.textInverse, fontWeight: '600' },
   tabBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: theme.colors.accent, borderRadius: theme.borderRadius.full, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
-  tabBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  tabBadgeText: { color: theme.colors.textInverse, fontSize: 10, fontWeight: '700' },
   list: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xxxl },
   card: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.lg, padding: Platform.select({ web: theme.spacing.md, default: theme.spacing.lg }), marginBottom: theme.spacing.sm, ...theme.shadows.sm },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xs },
@@ -134,7 +161,10 @@ const s = StyleSheet.create({
   statusBadge: { ...theme.typography.small, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, borderRadius: theme.borderRadius.full, overflow: 'hidden', fontWeight: '600' },
   inviteActions: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm },
   acceptBtn: { backgroundColor: theme.colors.going, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm },
-  acceptBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  acceptBtnText: { color: theme.colors.textInverse, fontWeight: '600', fontSize: 14 },
   declineBtn: { backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border },
   declineBtnText: { color: theme.colors.error, fontWeight: '600', fontSize: 14 },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.error + '11' },
+  btnDisabled: { opacity: 0.5 },
 });

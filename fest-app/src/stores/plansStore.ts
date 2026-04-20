@@ -1,11 +1,13 @@
 import { create } from 'zustand';
-import type { Plan, PlanProposal, PlanParticipant, ParticipantStatus, PlanLifecycle, Message, Vote } from '../types';
+import type { Plan, PlanProposal, ParticipantStatus, PlanLifecycle, Message } from '../types';
 import * as plansApi from '../api/plans';
 
 interface PlansState {
   plans: Plan[];
   messages: Record<string, Message[]>;
   loading: boolean;
+  error: string | null;
+  clearError: () => void;
   fetchMyPlans: () => Promise<void>;
   fetchPlan: (planId: string) => Promise<void>;
   apiCreatePlan: (data: Parameters<typeof plansApi.createPlan>[0]) => Promise<string>;
@@ -37,32 +39,50 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   plans: [],
   messages: {},
   loading: false,
+  error: null,
+
+  clearError: () => set({ error: null }),
 
   fetchMyPlans: async () => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const res = await plansApi.fetchPlans({ participant: 'me' });
       set({ plans: res.plans, loading: false });
-    } catch {
-      set({ loading: false });
+    } catch (e: any) {
+      set({ loading: false, error: e?.message || 'Ошибка загрузки планов' });
     }
   },
 
   fetchPlan: async (planId) => {
+    set({ error: null });
+    const alreadyHave = get().plans.some((p) => p.id === planId);
+    if (!alreadyHave) set({ loading: true });
     try {
       const plan = await plansApi.fetchPlan(planId);
-      set((s) => ({ plans: upsertPlan(s.plans, plan) }));
-    } catch {}
+      set((s) => ({ plans: upsertPlan(s.plans, plan), loading: false }));
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка загрузки плана', loading: false });
+    }
   },
 
   apiCreatePlan: async (data) => {
-    const plan = await plansApi.createPlan(data);
-    set((s) => ({ plans: [plan, ...s.plans] }));
-    return plan.id;
+    try {
+      const plan = await plansApi.createPlan(data);
+      set((s) => ({ plans: [plan, ...s.plans] }));
+      return plan.id;
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка создания плана' });
+      throw e;
+    }
   },
 
   apiUpdateParticipantStatus: async (planId, userId, status) => {
-    await plansApi.updateParticipantStatus(planId, userId, status);
+    try {
+      await plansApi.updateParticipantStatus(planId, userId, status);
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка обновления статуса' });
+      return;
+    }
     set((s) => ({
       plans: s.plans.map((p) =>
         p.id !== planId
@@ -78,7 +98,12 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   },
 
   apiRemoveParticipant: async (planId, userId) => {
-    await plansApi.removeParticipant(planId, userId);
+    try {
+      await plansApi.removeParticipant(planId, userId);
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка удаления участника' });
+      return;
+    }
     set((s) => ({
       plans: s.plans.map((p) =>
         p.id !== planId
@@ -94,7 +119,12 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   },
 
   apiCancelPlan: async (planId) => {
-    await plansApi.cancelPlan(planId);
+    try {
+      await plansApi.cancelPlan(planId);
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка отмены плана' });
+      return;
+    }
     set((s) => ({
       plans: s.plans.map((p) =>
         p.id === planId ? { ...p, lifecycle_state: 'cancelled' as PlanLifecycle } : p
@@ -103,7 +133,12 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   },
 
   apiCompletePlan: async (planId) => {
-    await plansApi.completePlan(planId);
+    try {
+      await plansApi.completePlan(planId);
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка завершения плана' });
+      return;
+    }
     set((s) => ({
       plans: s.plans.map((p) =>
         p.id === planId ? { ...p, lifecycle_state: 'completed' as PlanLifecycle } : p
@@ -112,17 +147,31 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   },
 
   apiFinalize: async (planId, placeProposalId, timeProposalId) => {
-    const res = await plansApi.finalizePlan(planId, placeProposalId, timeProposalId);
-    set((s) => ({ plans: upsertPlan(s.plans, res.plan) }));
+    try {
+      const res = await plansApi.finalizePlan(planId, placeProposalId, timeProposalId);
+      set((s) => ({ plans: upsertPlan(s.plans, res.plan) }));
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка финализации' });
+    }
   },
 
   apiUnfinalize: async (planId) => {
-    const res = await plansApi.unfinalizePlan(planId);
-    set((s) => ({ plans: upsertPlan(s.plans, res.plan) }));
+    try {
+      const res = await plansApi.unfinalizePlan(planId);
+      set((s) => ({ plans: upsertPlan(s.plans, res.plan) }));
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка отмены финализации' });
+    }
   },
 
   apiCreateProposal: async (planId, data) => {
-    const res = await plansApi.createProposal(planId, data);
+    let res;
+    try {
+      res = await plansApi.createProposal(planId, data);
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка создания предложения' });
+      return;
+    }
     const proposal = res.proposal;
     set((s) => ({
       plans: s.plans.map((p) =>
@@ -219,8 +268,8 @@ export const usePlansStore = create<PlansState>((set, get) => ({
               }
         ),
       }));
-    } catch {
-      set({ plans: prevPlans });
+    } catch (e: any) {
+      set({ plans: prevPlans, error: e?.message || 'Ошибка голосования' });
     }
   },
 
@@ -274,8 +323,8 @@ export const usePlansStore = create<PlansState>((set, get) => ({
               }
         ),
       }));
-    } catch {
-      set({ plans: prevPlans });
+    } catch (e: any) {
+      set({ plans: prevPlans, error: e?.message || 'Ошибка отмены голоса' });
     }
   },
 
@@ -285,7 +334,8 @@ export const usePlansStore = create<PlansState>((set, get) => ({
       const newPlan = res.plan;
       set((s) => ({ plans: [newPlan, ...s.plans] }));
       return newPlan.id;
-    } catch {
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка повтора плана' });
       return null;
     }
   },
@@ -301,7 +351,9 @@ export const usePlansStore = create<PlansState>((set, get) => ({
         merged.sort((a, b) => a.created_at.localeCompare(b.created_at));
         return { messages: { ...s.messages, [planId]: merged } };
       });
-    } catch {}
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка загрузки сообщений' });
+    }
   },
 
   apiSendMessage: async (planId, text) => {
@@ -345,8 +397,9 @@ export const usePlansStore = create<PlansState>((set, get) => ({
           },
         };
       });
-    } catch {
+    } catch (e: any) {
       set((s) => ({
+        error: e?.message || 'Ошибка отправки сообщения',
         messages: {
           ...s.messages,
           [planId]: (s.messages[planId] || []).filter(
@@ -365,7 +418,9 @@ export const usePlansStore = create<PlansState>((set, get) => ({
           p.id !== planId ? p : { ...p, proposals: res.proposals }
         ),
       }));
-    } catch {}
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка загрузки предложений' });
+    }
   },
 
   apiInviteParticipant: async (planId, inviteeId) => {
@@ -373,7 +428,9 @@ export const usePlansStore = create<PlansState>((set, get) => ({
       await plansApi.inviteParticipant(planId, inviteeId);
       const plan = await plansApi.fetchPlan(planId);
       set((s) => ({ plans: upsertPlan(s.plans, plan) }));
-    } catch {}
+    } catch (e: any) {
+      set({ error: e?.message || 'Ошибка приглашения участника' });
+    }
   },
 
   pushMessage: (planId, msg) => {
@@ -406,18 +463,20 @@ export const usePlansStore = create<PlansState>((set, get) => ({
       plans: s.plans.map((p) =>
         p.id !== planId
           ? p
-          : {
-              ...p,
-              proposals: [...(p.proposals || []), proposal],
-              place_status:
-                proposal.type === 'place' && p.place_status === 'undecided'
-                  ? 'proposed'
-                  : p.place_status,
-              time_status:
-                proposal.type === 'time' && p.time_status === 'undecided'
-                  ? 'proposed'
-                  : p.time_status,
-            }
+          : (p.proposals || []).some((pr) => pr.id === proposal.id)
+            ? p
+            : {
+                ...p,
+                proposals: [...(p.proposals || []), proposal],
+                place_status:
+                  proposal.type === 'place' && p.place_status === 'undecided'
+                    ? 'proposed'
+                    : p.place_status,
+                time_status:
+                  proposal.type === 'time' && p.time_status === 'undecided'
+                    ? 'proposed'
+                    : p.time_status,
+              }
       ),
     }));
   },

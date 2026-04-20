@@ -15,9 +15,6 @@ export const fetchEvents = (params?: { category?: string; limit?: number; page?:
   return api<EventsResponse>(`/events${q ? '?' + q : ''}`).then((r) => camelize<EventsResponse>(r));
 };
 
-export const fetchEvent = (id: string) =>
-  api<{ event: Event }>(`/events/${id}`).then((r) => camelize<Event>(r.event));
-
 export const markInterest = (eventId: string) =>
   api(`/events/${eventId}/interest`, { method: 'POST' });
 

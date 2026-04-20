@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, FlatList, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { useEventsStore } from '../stores/eventsStore';
 import { formatDateShort } from '../utils/dates';
 import { CATEGORY_LABELS } from '../utils/constants';
+import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
 import type { HomeStackParamList } from '../navigation/types';
 
@@ -12,11 +13,12 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'VenueDetails'>;
 
 export const VenueScreen = ({ route, navigation }: Props) => {
   const { venueId } = route.params;
-  const { events } = useEventsStore();
+  const { events, loading, error } = useEventsStore();
   const venueEvents = events.filter((e) => e.venue_id === venueId);
   const venue = venueEvents[0]?.venue;
 
-  if (!venue) return <ScreenContainer><View style={s.inner}><Text style={s.empty}>Площадка не найдена</Text></View></ScreenContainer>;
+  if (loading && !venue) return <ScreenContainer><View style={s.inner}><ActivityIndicator size="large" color={theme.colors.primary} style={s.loader} /></View></ScreenContainer>;
+  if (!venue) return <ScreenContainer><View style={s.inner}><EmptyState text={error || 'Площадка не найдена'} /></View></ScreenContainer>;
 
   return (
     <ScreenContainer>
@@ -61,6 +63,6 @@ const s = StyleSheet.create({
   eventBody: { flex: 1, padding: Platform.select({ web: theme.spacing.sm, default: theme.spacing.md }), justifyContent: 'center' },
   eventTitle: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, marginBottom: 2 },
   eventMeta: { ...theme.typography.small, color: theme.colors.textTertiary },
-  empty: { ...theme.typography.body, color: theme.colors.textTertiary, textAlign: 'center', marginTop: 100 },
   emptyList: { ...theme.typography.caption, color: theme.colors.textTertiary, textAlign: 'center', marginTop: theme.spacing.lg, paddingHorizontal: theme.spacing.lg },
+  loader: { marginTop: 100 },
 });

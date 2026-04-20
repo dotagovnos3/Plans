@@ -5,6 +5,9 @@ import * as notificationsApi from '../api/notifications';
 interface NotificationsState {
   notifications: Notification[];
   unreadCount: number;
+  loading: boolean;
+  error: string | null;
+  clearError: () => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
   fetchNotifications: () => Promise<void>;
@@ -14,6 +17,10 @@ interface NotificationsState {
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
+  loading: false,
+  error: null,
+
+  clearError: () => set({ error: null }),
 
   markRead: (id) => {
     const notifications = get().notifications.map((n) =>
@@ -32,10 +39,13 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   },
 
   fetchNotifications: async () => {
+    set({ loading: true, error: null });
     try {
       const res = await notificationsApi.fetchNotifications(50);
-      set({ notifications: res.notifications, unreadCount: res.unreadCount });
-    } catch {}
+      set({ notifications: res.notifications, unreadCount: res.unreadCount, loading: false });
+    } catch (e: any) {
+      set({ loading: false, error: e?.message || 'Ошибка загрузки уведомлений' });
+    }
   },
 
   pushNotification: (n) => {

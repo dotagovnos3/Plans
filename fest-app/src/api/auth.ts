@@ -7,7 +7,7 @@ interface ApiAuthResponse {
   user: User;
 }
 
-export interface AuthResponse {
+interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: User;
@@ -18,12 +18,6 @@ export const sendOtp = (phone: string) =>
 
 export const verifyOtp = async (phone: string, code: string) => {
   const res = await api<ApiAuthResponse>('/auth/otp/verify', { method: 'POST', body: { phone, code }, noAuth: true });
-  setToken(res.access_token);
-  return camelize<AuthResponse>(res);
-};
-
-export const refreshAuth = async (refreshToken: string) => {
-  const res = await api<ApiAuthResponse>('/auth/refresh', { method: 'POST', body: { refresh_token: refreshToken } });
   setToken(res.access_token);
   return camelize<AuthResponse>(res);
 };

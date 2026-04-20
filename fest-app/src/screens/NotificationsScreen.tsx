@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { useNotificationsStore } from '../stores/notificationsStore';
@@ -28,7 +28,7 @@ const GROUP_TYPES: NotificationType[] = ['group_invite'];
 const EVENT_TYPES: NotificationType[] = ['event_time_changed', 'event_cancelled'];
 
 export const NotificationsScreen = ({ navigation }: Props) => {
-  const { notifications, markRead, markAllRead, unreadCount, fetchNotifications } = useNotificationsStore();
+  const { notifications, markRead, markAllRead, unreadCount, loading, error, fetchNotifications } = useNotificationsStore();
 
   React.useEffect(() => { fetchNotifications(); }, []);
 
@@ -81,7 +81,12 @@ export const NotificationsScreen = ({ navigation }: Props) => {
             </TouchableOpacity>
           )}
         </View>
-        <FlatList data={notifications} keyExtractor={(n) => n.id} renderItem={renderItem} contentContainerStyle={s.list} ListEmptyComponent={<EmptyState text="Нет уведомлений" />} />
+        {error && <Text style={s.errorBanner}>{error}</Text>}
+        {loading && notifications.length === 0 ? (
+          <View style={s.loader}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
+        ) : (
+        <FlatList data={notifications} keyExtractor={(n) => n.id} renderItem={renderItem} contentContainerStyle={s.list} refreshing={loading && notifications.length > 0} onRefresh={fetchNotifications} ListEmptyComponent={<EmptyState text="Нет уведомлений" />} />
+        )}
       </View>
     </ScreenContainer>
   );
@@ -101,4 +106,6 @@ const s = StyleSheet.create({
   typeLabel: { ...theme.typography.bodyBold, color: theme.colors.textPrimary, marginBottom: 2 },
   payloadText: { ...theme.typography.caption, color: theme.colors.textSecondary },
   time: { ...theme.typography.caption, color: theme.colors.textTertiary, marginLeft: theme.spacing.md },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.error + '11' },
 });

@@ -146,6 +146,4 @@ export function getSubscriptions(): Set<string> {
   return new Set(subscriptions);
 }
 
-export function isConnected(): boolean {
-  return ws !== null && ws.readyState === WebSocket.OPEN;
-}
+

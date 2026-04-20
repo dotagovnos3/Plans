@@ -22,4 +22,4 @@ export const CATEGORY_LABELS: Record<EventCategory | string, string> = {
   other: 'Другое',
 };
 
-export const DISTRICTS = ['Все', 'Центр', 'Север', 'Юг', 'Запад', 'Восток'];
+

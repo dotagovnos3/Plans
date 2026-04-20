@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { useEventsStore } from '../stores/eventsStore';
@@ -12,10 +12,11 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'EventDetails'>;
 
 export const EventDetailsScreen = ({ route, navigation }: Props) => {
   const { eventId } = route.params;
-  const { events, interestedIds, savedIds, toggleInterest, toggleSave } = useEventsStore();
+  const { events, interestedIds, savedIds, loading, error, toggleInterest, toggleSave } = useEventsStore();
   const event = events.find((e) => e.id === eventId);
 
-  if (!event) return <ScreenContainer><View style={s.inner}><Text style={s.empty}>Мероприятие не найдено</Text></View></ScreenContainer>;
+  if (loading && !event) return <ScreenContainer><View style={s.inner}><ActivityIndicator size="large" color={theme.colors.primary} style={s.loader} /></View></ScreenContainer>;
+  if (!event) return <ScreenContainer><View style={s.inner}><Text style={s.empty}>{error || 'Мероприятие не найдено'}</Text></View></ScreenContainer>;
 
   const isInterested = interestedIds.has(event.id);
   const isSaved = savedIds.has(event.id);
@@ -86,4 +87,5 @@ const s = StyleSheet.create({
   planBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.xxl, paddingVertical: theme.spacing.md, marginLeft: 'auto' },
   planBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: 16 },
   empty: { ...theme.typography.body, color: theme.colors.textTertiary, textAlign: 'center', marginTop: 100 },
+  loader: { marginTop: 100 },
 });

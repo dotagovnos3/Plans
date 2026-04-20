@@ -9,9 +9,6 @@ export const fetchFriends = (status?: string) => {
 export const fetchUser = (id: string) =>
   api<{ user: User }>(`/users/${id}`).then((r) => camelize<User>(r.user));
 
-export const updateMe = (data: { name?: string; username?: string; avatar_url?: string }) =>
-  api<{ user: User }>('/users/me', { method: 'PATCH', body: data }).then((r) => camelize<User>(r.user));
-
 export const addFriend = (friendId: string) =>
   api<{ friendship: Friendship }>(`/users/friends/${friendId}`, { method: 'POST' });
 
