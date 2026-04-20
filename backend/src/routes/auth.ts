@@ -12,6 +12,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post('/otp/verify', async (request, reply) => {
     const { phone, code } = request.body as { phone: string; code: string };
+    if (!phone || !code) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'phone and code required' });
     if (!verifyOtp(phone, code)) return reply.code(401).send({ code: 'INVALID_OTP', message: 'Invalid or expired OTP' });
 
     let user = (await query('SELECT * FROM users WHERE phone = $1', [phone])).rows[0];
@@ -31,6 +32,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post('/refresh', async (request, reply) => {
     const { refresh_token } = request.body as { refresh_token: string };
+    if (!refresh_token) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'refresh_token required' });
     try {
       const decoded = app.jwt.verify(refresh_token) as any;
       if (decoded.type !== 'refresh') return reply.code(401).send({ code: 'INVALID_TOKEN', message: 'Not a refresh token' });
@@ -42,9 +44,10 @@ export async function authRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get('/me', { preHandler: [(app as any).authenticate] }, async (request) => {
+  app.get('/me', { preHandler: [(app as any).authenticate] }, async (request, reply) => {
     const userId = (request.user as any).userId;
     const user = (await query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
+    if (!user) return reply.code(404).send({ code: 'NOT_FOUND', message: 'User not found' });
     return { user };
   });
 }

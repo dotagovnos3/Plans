@@ -3,16 +3,16 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Platform, Te
 import { useNavigation } from '@react-navigation/native';
 import { theme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
+import { useFriendsStore } from '../stores/friendsStore';
 import { useEventsStore } from '../stores/eventsStore';
-import { formatDateShort } from '../utils/dates';
 import { ScreenContainer } from '../components/ScreenContainer';
-import { mockUsers } from '../mocks';
 import type { Event, User } from '../types';
 
 export const ProfileScreen = () => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { events, savedIds } = useEventsStore();
+  const { friends, fetchFriends } = useFriendsStore();
   const savedEvents = events.filter((e) => savedIds.has(e.id));
   const [showSaved, setShowSaved] = React.useState(false);
   const [showFriends, setShowFriends] = React.useState(false);
@@ -20,7 +20,7 @@ export const ProfileScreen = () => {
   const [editName, setEditName] = React.useState(user?.name ?? '');
   const navigation = useNavigation();
 
-  const friends = mockUsers.filter((u) => u.id !== 'me');
+  React.useEffect(() => { fetchFriends(); }, []);
 
   const handleSaveProfile = () => {
     setEditing(false);

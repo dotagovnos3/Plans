@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { User } from '../types';
-import { mockUsers } from '../mocks';
 import * as authApi from '../api/auth';
 import { setToken } from '../api/client';
 import { startWs, stopWs } from '../api/ws';
@@ -50,7 +49,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       initWsHandler();
       startWs();
     } catch {
-      set({ user: mockUsers[5], isAuthenticated: true, otpSent: false, loading: false });
+      set({ loading: false });
     }
   },
 

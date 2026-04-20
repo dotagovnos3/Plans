@@ -20,6 +20,8 @@ export async function groupRoutes(app: FastifyInstance) {
   app.post('/', { preHandler: [(app as any).authenticate] }, async (request, reply) => {
     const userId = (request.user as any).userId;
     const { name, member_ids } = request.body as { name: string; member_ids: string[] };
+    if (!name || !name.trim()) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'name required' });
+    if (member_ids && !Array.isArray(member_ids)) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'member_ids must be an array' });
 
     const client = await pool.connect();
     try {
@@ -76,6 +78,7 @@ export async function groupRoutes(app: FastifyInstance) {
     const userId = (request.user as any).userId;
     const { id } = request.params as { id: string };
     const { user_id } = request.body as { user_id: string };
+    if (!user_id) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'user_id required' });
     const group = (await query('SELECT * FROM groups WHERE id = $1', [id])).rows[0];
     if (!group) return reply.code(404).send({ code: 'NOT_FOUND', message: 'Group not found' });
     if (group.creator_id !== userId) return reply.code(403).send({ code: 'FORBIDDEN', message: 'Only creator can add members' });
@@ -85,7 +88,7 @@ export async function groupRoutes(app: FastifyInstance) {
     const inviterName = (await query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name;
     await insertNotification(user_id, 'group_invite', { group_id: id, inviter_name: inviterName });
 
-    return reply.code(201).send({ invitation_id: null, message: 'Invitation sent' });
+    return reply.code(201).send({ code: 'OK', message: 'Invitation sent' });
   });
 
   app.delete('/:id/members/:uid', { preHandler: [(app as any).authenticate] }, async (request, reply) => {

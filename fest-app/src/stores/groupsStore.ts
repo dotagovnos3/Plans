@@ -1,36 +1,54 @@
 import { create } from 'zustand';
 import type { Group, GroupMember } from '../types';
-import { mockGroups } from '../mocks';
-import { mockUsers } from '../mocks';
-import { useAuthStore } from './authStore';
+import * as groupsApi from '../api/groups';
 
 interface GroupsState {
   groups: Group[];
-  addGroup: (group: Group) => void;
-  addMember: (groupId: string, userId: string) => void;
-  removeMember: (groupId: string, userId: string) => void;
+  fetchGroups: () => Promise<void>;
+  apiCreateGroup: (name: string, memberIds?: string[]) => Promise<string | null>;
+  apiAddMember: (groupId: string, userId: string) => Promise<void>;
+  apiRemoveMember: (groupId: string, userId: string) => Promise<void>;
 }
 
-export const useGroupsStore = create<GroupsState>((set) => ({
-  groups: mockGroups,
-  addGroup: (group) => set((s) => ({ groups: [group, ...s.groups] })),
-  addMember: (groupId, userId) => set((s) => ({
-    groups: s.groups.map((g) => g.id !== groupId ? g : {
-      ...g,
-      members: [...(g.members || []), {
-        id: `gm-${Date.now()}`,
-        group_id: groupId,
-        user_id: userId,
-        role: 'member' as const,
-        joined_at: new Date().toISOString(),
-        user: mockUsers.find((u) => u.id === userId) ?? useAuthStore.getState().user ?? undefined,
-      }],
-    }),
-  })),
-  removeMember: (groupId, userId) => set((s) => ({
-    groups: s.groups.map((g) => g.id !== groupId ? g : {
-      ...g,
-      members: (g.members || []).filter((m) => m.user_id !== userId),
-    }),
-  })),
+export const useGroupsStore = create<GroupsState>((set, get) => ({
+  groups: [],
+
+  fetchGroups: async () => {
+    try {
+      const groups = await groupsApi.fetchGroups();
+      set({ groups });
+    } catch {}
+  },
+
+  apiCreateGroup: async (name, memberIds) => {
+    try {
+      const group = await groupsApi.createGroup({ name, member_ids: memberIds });
+      set((s) => ({ groups: [group, ...s.groups] }));
+      return group.id;
+    } catch {
+      return null;
+    }
+  },
+
+  apiAddMember: async (groupId, userId) => {
+    try {
+      await groupsApi.addGroupMember(groupId, userId);
+      const updated = await groupsApi.fetchGroup(groupId);
+      set((s) => ({
+        groups: s.groups.map((g) => g.id !== groupId ? g : updated),
+      }));
+    } catch {}
+  },
+
+  apiRemoveMember: async (groupId, userId) => {
+    try {
+      await groupsApi.removeGroupMember(groupId, userId);
+      set((s) => ({
+        groups: s.groups.map((g) => g.id !== groupId ? g : {
+          ...g,
+          members: (g.members || []).filter((m) => m.user_id !== userId),
+        }),
+      }));
+    } catch {}
+  },
 }));

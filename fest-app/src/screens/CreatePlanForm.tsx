@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform, Alert } from 'react-native';
 import { theme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { usePlansStore } from '../stores/plansStore';
 import { useGroupsStore } from '../stores/groupsStore';
+import { useFriendsStore } from '../stores/friendsStore';
 import { ACTIVITY_LABELS, type ActivityType } from '../types';
-import { mockUsers } from '../mocks';
 import { ScreenContainer } from '../components/ScreenContainer';
 
 const MAX_PARTICIPANTS = 15;
@@ -29,8 +29,11 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   const user = useAuthStore((s) => s.user);
   const apiCreatePlan = usePlansStore((s) => s.apiCreatePlan);
   const groups = useGroupsStore((s) => s.groups);
+  const { friends: apiFriends, fetchFriends } = useFriendsStore();
 
   const isFromEvent = !!linkedEventId;
+
+  useEffect(() => { fetchFriends(); }, []);
 
   const [activityType, setActivityType] = useState<ActivityType>(isFromEvent ? 'other' : 'cinema');
   const [title, setTitle] = useState(linkedEventTitle ?? '');
@@ -41,12 +44,12 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   const [preMeetTime, setPreMeetTime] = useState('');
   const [friends, setFriends] = useState<FriendItem[]>(
     (() => {
-      const base = mockUsers.filter((u) => u.id !== 'me').map((u) => ({ id: u.id, name: u.name, selected: false }));
+      const base = apiFriends.map((u) => ({ id: u.id, name: u.name, selected: false }));
       if (preselectedGroupIds?.length) {
         const memberIds = new Set<string>();
         preselectedGroupIds.forEach((gid) => {
           const group = groups.find((g) => g.id === gid);
-          (group?.members ?? []).forEach((m) => { if (m.user_id !== 'me') memberIds.add(m.user_id); });
+          (group?.members ?? []).forEach((m) => { if (m.user_id !== user?.id) memberIds.add(m.user_id); });
         });
         return base.map((f) => ({ ...f, selected: memberIds.has(f.id) }));
       }
@@ -67,7 +70,7 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
     } else {
       setSelectedGroupId(groupId);
       const group = groups.find((g) => g.id === groupId);
-      const memberIds = new Set((group?.members ?? []).map((m) => m.user_id));
+      const memberIds = new Set((group?.members ?? []).filter((m) => m.user_id !== user?.id).map((m) => m.user_id));
       setFriends((prev) => prev.map((f) => ({ ...f, selected: memberIds.has(f.id) })));
     }
   };

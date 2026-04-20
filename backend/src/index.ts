@@ -47,6 +47,17 @@ await app.register(wsRoutes, { prefix: '/api' });
 
 app.get('/api/health', async () => ({ status: 'ok' }));
 
+app.setErrorHandler((error: any, request: any, reply: any) => {
+  if (error.statusCode === 401) {
+    return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
+  }
+  if (error.statusCode) {
+    return reply.code(error.statusCode).send({ code: 'ERROR', message: error.message || 'Request failed' });
+  }
+  app.log.error(error);
+  return reply.code(500).send({ code: 'INTERNAL_ERROR', message: 'Internal server error' });
+});
+
 try {
   await app.listen({ port: PORT, host: '0.0.0.0' });
   app.log.info(`Backend running on http://localhost:${PORT}`);

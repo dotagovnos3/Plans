@@ -80,6 +80,13 @@ export async function planRoutes(app: FastifyInstance) {
     const body = request.body as any;
     const { title, activity_type, linked_event_id, confirmed_place_text, confirmed_place_lat, confirmed_place_lng, confirmed_time, pre_meet_enabled, pre_meet_place_text, pre_meet_time, participant_ids } = body;
 
+    if (!title || !title.trim()) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'title required' });
+    if (activity_type && !['cinema', 'coffee', 'bar', 'walk', 'dinner', 'sport', 'exhibition', 'other'].includes(activity_type)) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'Invalid activity_type' });
+    if (participant_ids && !Array.isArray(participant_ids)) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'participant_ids must be an array' });
+    if (confirmed_place_lat != null && typeof confirmed_place_lat !== 'number') return reply.code(400).send({ code: 'INVALID_INPUT', message: 'confirmed_place_lat must be a number' });
+    if (confirmed_place_lng != null && typeof confirmed_place_lng !== 'number') return reply.code(400).send({ code: 'INVALID_INPUT', message: 'confirmed_place_lng must be a number' });
+    if (confirmed_time && isNaN(Date.parse(confirmed_time))) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'confirmed_time must be a valid date' });
+
     const others = (participant_ids || []).filter((id: string) => id !== userId);
     if (1 + others.length > 15) return reply.code(409).send({ code: 'PLAN_FULL', message: 'Max 15 participants including creator' });
 
@@ -269,6 +276,9 @@ export async function planRoutes(app: FastifyInstance) {
     const { type, value_text, value_lat, value_lng, value_datetime } = body;
     if (!type || !value_text) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'type and value_text required' });
     if (!['place', 'time'].includes(type)) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'type must be place or time' });
+    if (value_lat != null && typeof value_lat !== 'number') return reply.code(400).send({ code: 'INVALID_INPUT', message: 'value_lat must be a number' });
+    if (value_lng != null && typeof value_lng !== 'number') return reply.code(400).send({ code: 'INVALID_INPUT', message: 'value_lng must be a number' });
+    if (value_datetime && isNaN(Date.parse(value_datetime))) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'value_datetime must be a valid date' });
 
     const plan = (await query('SELECT * FROM plans WHERE id = $1', [id])).rows[0];
     if (!plan) return reply.code(404).send({ code: 'NOT_FOUND', message: 'Plan not found' });
@@ -400,7 +410,7 @@ export async function planRoutes(app: FastifyInstance) {
 
       if (place_proposal_id) {
         const prop = (await client.query('SELECT * FROM plan_proposals WHERE id = $1 AND plan_id = $2 AND type = $3', [place_proposal_id, id, 'place'])).rows[0];
-        if (!prop) { await client.query('ROLLBACK'); client.release(); return reply.code(400).send({ code: 'INVALID_INPUT', message: 'Place proposal not found' }); }
+        if (!prop) { await client.query('ROLLBACK'); return reply.code(400).send({ code: 'INVALID_INPUT', message: 'Place proposal not found' }); }
         sets.push(`confirmed_place_text = $${idx}`); params.push(prop.value_text); idx++;
         sets.push(prop.value_lat != null ? `confirmed_place_lat = $${idx}` : 'confirmed_place_lat = NULL');
         if (prop.value_lat != null) { params.push(prop.value_lat); idx++; }
@@ -413,7 +423,7 @@ export async function planRoutes(app: FastifyInstance) {
 
       if (time_proposal_id) {
         const prop = (await client.query('SELECT * FROM plan_proposals WHERE id = $1 AND plan_id = $2 AND type = $3', [time_proposal_id, id, 'time'])).rows[0];
-        if (!prop) { await client.query('ROLLBACK'); client.release(); return reply.code(400).send({ code: 'INVALID_INPUT', message: 'Time proposal not found' }); }
+        if (!prop) { await client.query('ROLLBACK'); return reply.code(400).send({ code: 'INVALID_INPUT', message: 'Time proposal not found' }); }
         const rawTime = prop.value_datetime || prop.value_text;
         let timeVal: string;
         if (rawTime instanceof Date) {
@@ -583,6 +593,7 @@ export async function planRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { text, client_message_id } = request.body as { text: string; client_message_id?: string };
     if (!text || !text.trim()) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'text required' });
+    if (text.length > 2000) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'text too long (max 2000)' });
 
     const plan = (await query('SELECT * FROM plans WHERE id = $1', [id])).rows[0];
     if (!plan) return reply.code(404).send({ code: 'NOT_FOUND', message: 'Plan not found' });
