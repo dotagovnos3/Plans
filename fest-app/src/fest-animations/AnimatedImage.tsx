@@ -2,7 +2,7 @@
 // Usage: Event covers, avatars, any images
 
 import React, { useState, useEffect } from 'react';
-import { Image, View, StyleSheet, ViewStyle, ImageProps } from 'react-native';
+import { Image, View, StyleSheet, ViewStyle, ImageStyle, ImageProps, StyleProp } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,18 +18,17 @@ import { theme } from '../theme';
 
 interface AnimatedImageProps {
   source: ImageProps['source'];
-  style?: ViewStyle;
+  style?: StyleProp<ImageStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
   resizeMode?: ImageProps['resizeMode'];
   delay?: number;
   shimmer?: boolean;
 }
 
-const AnimatedView = Animated.createAnimatedComponent(View);
-const AnimatedImage = Animated.createAnimatedComponent(Image);
-
 export const AnimatedImageComponent: React.FC<AnimatedImageProps> = ({
   source,
   style,
+  containerStyle,
   resizeMode = 'cover',
   delay = 0,
   shimmer = true,
@@ -94,15 +93,15 @@ export const AnimatedImageComponent: React.FC<AnimatedImageProps> = ({
   });
 
   return (
-    <View style={[s.container, style]}>
+    <View style={[s.container, containerStyle]}>
       {!isLoaded && shimmer && (
-        <AnimatedView style={[s.shimmer, shimmerStyle]}>
+        <Animated.View style={[s.shimmer, shimmerStyle]}>
           <View style={s.shimmerGradient} />
-        </AnimatedView>
+        </Animated.View>
       )}
-      <AnimatedImage
+      <Animated.Image
         source={source}
-        style={[s.image, imageStyle, style]}
+        style={[s.image, style, imageStyle]}
         resizeMode={resizeMode}
         onLoad={() => setIsLoaded(true)}
       />

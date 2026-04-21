@@ -4,6 +4,7 @@
     "strict": true
   },
   "exclude": [
-    "src/fest-animations/**/*"
+    "src/fest-animations/AnimationShowcase.tsx",
+    "src/fest-animations/screens/**/*"
   ]
 }

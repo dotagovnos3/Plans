@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform, Alert, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { usePlansStore } from '../stores/plansStore';
@@ -11,6 +12,10 @@ import { subscribe, unsubscribe } from '../api/ws';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
 import type { PlansStackParamList } from '../navigation/types';
+import { AnimatedPressable } from '../fest-animations/AnimatedPressable';
+import { AnimatedBadge } from '../fest-animations/AnimatedBadge';
+import { AnimatedConfetti } from '../fest-animations/AnimatedConfetti';
+import { SpringFadeIn } from '../fest-animations/SpringFadeIn';
 
 type Props = NativeStackScreenProps<PlansStackParamList, 'PlanDetails'>;
 
@@ -35,6 +40,7 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   const [sending, setSending] = useState(false);
   const [repeating, setRepeating] = useState(false);
   const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [confettiTrigger, setConfettiTrigger] = useState(false);
 
   React.useEffect(() => { fetchPlan(planId); }, [planId]);
   React.useEffect(() => { if (tab === 'chat') apiFetchMessages(planId); }, [tab, planId]);
@@ -102,29 +108,28 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   return (
     <ScreenContainer>
       <View style={s.inner}>
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+          <AnimatedPressable style={s.backBtn} onPress={() => navigation.goBack()} activeScale={0.92} hitSlop={12}>
             <Text style={s.backText}>← Назад</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
           {planError && <Text style={s.errorBanner}>{planError}</Text>}
-        <View style={s.headerRow}>
-          <Text style={s.title}>{plan.title}</Text>
-          <Text style={s.activity}>{ACTIVITY_LABELS[plan.activity_type]}</Text>
-        </View>
+        <SpringFadeIn delay={60} direction="down" distance={12}>
+          <View style={s.headerRow}>
+            <Text style={s.title}>{plan.title}</Text>
+            <Text style={s.activity}>{ACTIVITY_LABELS[plan.activity_type]}</Text>
+          </View>
+        </SpringFadeIn>
 
-        <View style={s.tabRow}>
-          <TouchableOpacity style={[s.tab, tab === 'details' && s.tabActive]} onPress={() => setTab('details')}>
-            <Text style={[s.tabText, tab === 'details' && s.tabTextActive]}>Детали</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[s.tab, tab === 'chat' && s.tabActive]} onPress={() => setTab('chat')}>
-            <Text style={[s.tabText, tab === 'chat' && s.tabTextActive]}>Чат</Text>
-          </TouchableOpacity>
-        </View>
+        <SpringFadeIn delay={140} direction="up" distance={10}>
+          <AnimatedTabBar tab={tab} onChange={setTab} />
+        </SpringFadeIn>
 
         {tab === 'details' ? (
-          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={apiFinalize} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} repeating={repeating} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
+          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={async (id, pId, tId) => { await apiFinalize(id, pId, tId); setConfettiTrigger(true); }} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} repeating={repeating} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
         ) : (
           <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} sending={sending} planId={planId} onVote={apiVote} onUnvote={apiUnvote} userId={user.id} />
         )}
+
+        <AnimatedConfetti trigger={confettiTrigger} onComplete={() => setConfettiTrigger(false)} particleCount={40} />
 
         <Modal visible={showInviteModal} transparent animationType="slide" onRequestClose={() => setShowInviteModal(false)}>
           <View style={s.modalOverlay}>
@@ -160,6 +165,30 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
         </Modal>
       </View>
     </ScreenContainer>
+  );
+};
+
+const AnimatedTabBar = ({ tab, onChange }: { tab: 'details' | 'chat'; onChange: (t: 'details' | 'chat') => void }) => {
+  const progress = useSharedValue(tab === 'details' ? 0 : 1);
+  const [barWidth, setBarWidth] = React.useState(0);
+  React.useEffect(() => {
+    progress.value = withSpring(tab === 'details' ? 0 : 1, { damping: 18, stiffness: 220, mass: 0.7 });
+  }, [tab]);
+  const indicatorStyle = useAnimatedStyle(() => {
+    const half = (barWidth - 8) / 2;
+    const translateX = interpolate(progress.value, [0, 1], [0, half], Extrapolation.CLAMP);
+    return { transform: [{ translateX }], width: half };
+  });
+  return (
+    <View style={s.tabRow} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
+      {barWidth > 0 ? <Animated.View pointerEvents="none" style={[s.tabIndicator, indicatorStyle]} /> : null}
+      <AnimatedPressable style={s.tab} onPress={() => onChange('details')} activeScale={0.97}>
+        <Text style={[s.tabText, tab === 'details' && s.tabTextActive]}>Детали</Text>
+      </AnimatedPressable>
+      <AnimatedPressable style={s.tab} onPress={() => onChange('chat')} activeScale={0.97}>
+        <Text style={[s.tabText, tab === 'chat' && s.tabTextActive]}>Чат</Text>
+      </AnimatedPressable>
+    </View>
   );
 };
 
@@ -239,11 +268,11 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
           <View key={p.id} style={s.participantRow}>
             <Text style={s.participantName}>{p.user?.name ?? '???'}{p.user_id === plan.creator_id ? ' (создатель)' : ''}</Text>
             <View style={s.participantRight}>
-              <Text style={[s.statusBadge, { backgroundColor: STATUS_COLORS[p.status] + '22', color: STATUS_COLORS[p.status] }]}>{STATUS_LABELS[p.status]}</Text>
+              <AnimatedBadge label={STATUS_LABELS[p.status]} color={STATUS_COLORS[p.status]} pulse={p.status === 'going'} />
               {isCreator && p.user_id !== plan.creator_id && onRemove && (
-                <TouchableOpacity onPress={() => onRemove(p.user_id)} style={s.removeBtn}>
+                <AnimatedPressable onPress={() => onRemove(p.user_id)} style={s.removeBtn} activeScale={0.85} hitSlop={8}>
                   <Text style={s.removeBtnText}>✕</Text>
-                </TouchableOpacity>
+                </AnimatedPressable>
               )}
             </View>
           </View>
@@ -260,9 +289,9 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
             <Text style={s.sectionTitle}>Ваш статус</Text>
             <View style={s.statusRow}>
               {statusBtns.map((btn) => (
-                <TouchableOpacity key={btn.key} style={[s.statusBtn, myStatus === btn.key && { backgroundColor: STATUS_COLORS[btn.key] + '22', borderColor: STATUS_COLORS[btn.key] }]} onPress={() => onSetStatus(btn.key)}>
-                  <Text style={[s.statusBtnText, myStatus === btn.key && { color: STATUS_COLORS[btn.key] }]}>{btn.label}</Text>
-                </TouchableOpacity>
+                <AnimatedPressable key={btn.key} style={[s.statusBtn, myStatus === btn.key && { backgroundColor: STATUS_COLORS[btn.key] + '22', borderColor: STATUS_COLORS[btn.key] }]} onPress={() => onSetStatus(btn.key)} activeScale={0.94}>
+                  <Text style={[s.statusBtnText, myStatus === btn.key && { color: STATUS_COLORS[btn.key], fontWeight: '700' }]}>{btn.label}</Text>
+                </AnimatedPressable>
               ))}
             </View>
           </>
@@ -319,23 +348,23 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
         {isCreator && !isCompleted && !isCancelled && (
           <View style={s.divider}>
             {plan.lifecycle_state === 'active' && plan.place_status === 'confirmed' && plan.time_status === 'confirmed' && (
-              <TouchableOpacity style={s.finalizeBtn} onPress={() => onFinalize(plan.id)}>
-                <Text style={s.finalizeBtnText}>Подтвердить план</Text>
-              </TouchableOpacity>
+              <AnimatedPressable style={s.finalizeBtn} onPress={() => onFinalize(plan.id)} activeScale={0.96}>
+                <Text style={s.finalizeBtnText}>✨ Подтвердить план</Text>
+              </AnimatedPressable>
             )}
             {plan.lifecycle_state === 'finalized' && (
-              <TouchableOpacity style={s.unfinalizeBtn} onPress={() => onUnfinalize(plan.id)}>
+              <AnimatedPressable style={s.unfinalizeBtn} onPress={() => onUnfinalize(plan.id)} activeScale={0.96}>
                 <Text style={s.unfinalizeBtnText}>Отменить подтверждение</Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             )}
             {plan.lifecycle_state === 'active' && !(plan.place_status === 'confirmed' && plan.time_status === 'confirmed') && (
-              <TouchableOpacity style={s.completeBtn} onPress={() => onComplete(plan.id)}>
+              <AnimatedPressable style={s.completeBtn} onPress={() => onComplete(plan.id)} activeScale={0.96}>
                 <Text style={s.completeBtnText}>Завершить план</Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             )}
-            <TouchableOpacity style={s.cancelBtn} onPress={() => onCancel(plan.id)}>
+            <AnimatedPressable style={s.cancelBtn} onPress={() => onCancel(plan.id)} activeScale={0.96}>
               <Text style={s.cancelBtnText}>Отменить план</Text>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
         )}
 
@@ -346,9 +375,9 @@ const DetailsTab = ({ plan, isCreator, myStatus, onSetStatus, onVote, onUnvote, 
         )}
 
         {isCompleted && (
-          <TouchableOpacity style={[s.repeatBtn, repeating && s.btnDisabled]} onPress={onRepeat} disabled={repeating}>
-            <Text style={s.repeatBtnText}>{repeating ? '...' : 'Повторить'}</Text>
-          </TouchableOpacity>
+          <AnimatedPressable style={[s.repeatBtn, repeating && s.btnDisabled]} onPress={onRepeat} disabled={repeating} activeScale={0.96}>
+            <Text style={s.repeatBtnText}>{repeating ? '...' : '↻ Повторить'}</Text>
+          </AnimatedPressable>
         )}
       </ScrollView>
 
@@ -469,11 +498,12 @@ const s = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm },
   title: { ...theme.typography.h3, color: theme.colors.textPrimary, flex: 1 },
   activity: { ...theme.typography.caption, color: theme.colors.primary, backgroundColor: theme.colors.primaryLight + '22', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, borderRadius: theme.borderRadius.full },
-  tabRow: { flexDirection: 'row', paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.sm, gap: theme.spacing.sm },
-  tab: { paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.lg, borderRadius: theme.borderRadius.full, backgroundColor: theme.colors.surface },
-  tabActive: { backgroundColor: theme.colors.primary },
-  tabText: { ...theme.typography.caption, color: theme.colors.textSecondary },
-  tabTextActive: { color: theme.colors.textInverse, fontWeight: '600' },
+  tabRow: { flexDirection: 'row', marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md, backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.borderRadius.full, padding: 4, position: 'relative' },
+  tabIndicator: { position: 'absolute', top: 4, bottom: 4, left: 4, backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.full, shadowColor: theme.colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 3 },
+  tab: { flex: 1, paddingVertical: theme.spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: theme.borderRadius.full },
+  tabActive: { backgroundColor: 'transparent' },
+  tabText: { ...theme.typography.caption, color: theme.colors.textSecondary, fontWeight: '600' },
+  tabTextActive: { color: theme.colors.textInverse, fontWeight: '700' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xxxl, ...Platform.select({ web: { paddingBottom: theme.spacing.xxl } }) },
   linkedEvent: { backgroundColor: theme.colors.primaryLight + '15', borderRadius: theme.borderRadius.md, padding: theme.spacing.md, marginBottom: theme.spacing.lg },

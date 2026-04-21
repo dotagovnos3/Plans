@@ -21,10 +21,6 @@ interface AnimatedFloatingButtonProps {
   icon?: string;
 }
 
-const AnimatedView = Animated.createAnimatedComponent(
-  require('react-native').View
-);
-
 export const AnimatedFloatingButton: React.FC<AnimatedFloatingButtonProps> = ({
   label,
   onPress,
@@ -72,19 +68,18 @@ export const AnimatedFloatingButton: React.FC<AnimatedFloatingButtonProps> = ({
   return (
     <View style={style}>
       {/* Glow effect */}
-      <AnimatedView
-        style={[s.glow, glowStyle, { backgroundColor } as ViewStyle]}
+      <Animated.View
+        style={[s.glow, { backgroundColor }, glowStyle]}
       />
       <AnimatedPressable
         onPress={onPress}
         onPressIn={handleHoverIn}
         onPressOut={handleHoverOut}
-        style={[s.button, { backgroundColor } as ViewStyle]}
+        style={[s.button, { backgroundColor }]}
         activeScale={0.95}
       >
         <Text style={s.text}>
-          {icon && <Text style={s.icon}>{icon}</Text>}
-          {icon && ' '}
+          {icon ? <Text style={s.icon}>{icon} </Text> : null}
           {label}
         </Text>
       </AnimatedPressable>

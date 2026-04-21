@@ -2,7 +2,7 @@
 // Usage: Category filters, tags, status indicators
 
 import React, { useEffect } from 'react';
-import { Text, StyleSheet, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,10 +20,6 @@ interface AnimatedChipProps {
   style?: ViewStyle;
   index?: number;
 }
-
-const AnimatedPressable = Animated.createAnimatedComponent(
-  require('react-native').Pressable
-);
 
 export const AnimatedChip: React.FC<AnimatedChipProps> = ({
   label,
@@ -99,14 +95,15 @@ export const AnimatedChip: React.FC<AnimatedChipProps> = ({
   };
 
   return (
-    <AnimatedPressable
+    <Pressable
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={[s.chip, style, animatedStyle]}
     >
-      <Animated.Text style={[s.text, textStyle]}>{label}</Animated.Text>
-    </AnimatedPressable>
+      <Animated.View style={[s.chip, style, animatedStyle]}>
+        <Animated.Text style={[s.text, textStyle]}>{label}</Animated.Text>
+      </Animated.View>
+    </Pressable>
   );
 };
 

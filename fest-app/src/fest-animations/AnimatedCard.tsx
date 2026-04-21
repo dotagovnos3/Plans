@@ -25,8 +25,6 @@ interface AnimatedCardProps {
   spotlightColor?: string;
 }
 
-const AnimatedView = Animated.createAnimatedComponent(View);
-
 export const AnimatedCard: React.FC<AnimatedCardProps> = ({
   children,
   style,
@@ -122,7 +120,7 @@ export const AnimatedCard: React.FC<AnimatedCardProps> = ({
   };
 
   return (
-    <AnimatedView
+    <Animated.View
       style={[s.card, style, animatedStyle]}
       onPointerEnter={Platform.OS === 'web' ? handleHoverIn : undefined}
       onPointerLeave={Platform.OS === 'web' ? handleHoverOut : undefined}
@@ -130,10 +128,10 @@ export const AnimatedCard: React.FC<AnimatedCardProps> = ({
       onTouchEnd={handleHoverOut}
     >
       {enableSpotlight && (
-        <AnimatedView style={[s.spotlight, { backgroundColor: spotlightColor }, spotlightStyle]} />
+        <Animated.View style={[s.spotlight, { backgroundColor: spotlightColor }, spotlightStyle]} />
       )}
       {children}
-    </AnimatedView>
+    </Animated.View>
   );
 };
 

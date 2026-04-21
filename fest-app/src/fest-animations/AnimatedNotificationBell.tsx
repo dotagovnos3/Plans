@@ -2,7 +2,7 @@
 // Usage: Notification icons with unread count
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,8 +20,6 @@ interface AnimatedNotificationBellProps {
   onPress: () => void;
   delay?: number;
 }
-
-const AnimatedView = Animated.createAnimatedComponent(View);
 
 export const AnimatedNotificationBell: React.FC<AnimatedNotificationBellProps> = ({
   count,
@@ -92,15 +90,15 @@ export const AnimatedNotificationBell: React.FC<AnimatedNotificationBellProps> =
 
   return (
     <AnimatedPressable onPress={onPress} style={s.container}>
-      <AnimatedView style={[s.bell, bellStyle]}>
+      <Animated.View style={[s.bell, bellStyle]}>
         <Text style={s.bellIcon}>🔔</Text>
-      </AnimatedView>
+      </Animated.View>
       {count > 0 && (
-        <AnimatedView style={[s.badge, badgeStyle]}>
+        <Animated.View style={[s.badge, badgeStyle]}>
           <Animated.Text style={[s.badgeText, countStyle]}>
             {count > 99 ? '99+' : count}
           </Animated.Text>
-        </AnimatedView>
+        </Animated.View>
       )}
     </AnimatedPressable>
   );

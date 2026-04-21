@@ -2,7 +2,7 @@
 // Usage: Wrap any interactive element for premium tactile feedback
 
 import React from 'react';
-import { Pressable, StyleSheet, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -16,7 +16,8 @@ interface AnimatedPressableProps {
   onPress?: () => void;
   onPressIn?: () => void;
   onPressOut?: () => void;
-  style?: ViewStyle;
+  onLongPress?: () => void;
+  style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   activeScale?: number;
   springConfig?: {
@@ -24,19 +25,20 @@ interface AnimatedPressableProps {
     stiffness?: number;
     mass?: number;
   };
+  hitSlop?: number;
 }
-
-const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
 
 export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   children,
   onPress,
   onPressIn,
   onPressOut,
+  onLongPress,
   style,
   disabled = false,
   activeScale = 0.96,
   springConfig = { damping: 15, stiffness: 400, mass: 0.8 },
+  hitSlop,
 }) => {
   const pressed = useSharedValue(0);
 
@@ -64,15 +66,18 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   };
 
   return (
-    <AnimatedPressableBase
+    <Pressable
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      onLongPress={onLongPress}
       disabled={disabled}
-      style={[s.base, style, animatedStyle]}
+      hitSlop={hitSlop}
     >
-      {children}
-    </AnimatedPressableBase>
+      <Animated.View style={[s.base, style, animatedStyle]}>
+        {children}
+      </Animated.View>
+    </Pressable>
   );
 };
 

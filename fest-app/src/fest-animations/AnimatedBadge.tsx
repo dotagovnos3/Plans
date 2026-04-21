@@ -22,10 +22,6 @@ interface AnimatedBadgeProps {
   delay?: number;
 }
 
-const AnimatedView = Animated.createAnimatedComponent(
-  require('react-native').View
-);
-
 export const AnimatedBadge: React.FC<AnimatedBadgeProps> = ({
   label,
   color = theme.colors.primary,
@@ -94,9 +90,9 @@ export const AnimatedBadge: React.FC<AnimatedBadgeProps> = ({
   });
 
   return (
-    <AnimatedView style={[s.container, style, containerStyle]}>
+    <Animated.View style={[s.container, style, containerStyle]}>
       {pulse && (
-        <AnimatedView
+        <Animated.View
           style={[
             s.pulse,
             { backgroundColor: color },
@@ -107,7 +103,7 @@ export const AnimatedBadge: React.FC<AnimatedBadgeProps> = ({
       <View style={[s.badge, { backgroundColor: color + '22' }]}>
         <Text style={[s.text, { color }]}>{label}</Text>
       </View>
-    </AnimatedView>
+    </Animated.View>
   );
 };
 

@@ -21,7 +21,7 @@ interface StaggeredListProps<T> extends Omit<FlatListProps<T>, 'renderItem'> {
   animationType?: 'slideUp' | 'slideLeft' | 'fade' | 'scale';
 }
 
-const AnimatedView = Animated.createAnimatedComponent(View);
+
 
 interface AnimatedListItemProps {
   children: React.ReactNode;
@@ -90,9 +90,9 @@ const AnimatedListItem: React.FC<AnimatedListItemProps> = ({
   });
 
   return (
-    <AnimatedView style={[s.itemContainer, animatedStyle]}>
+    <Animated.View style={[s.itemContainer, animatedStyle]}>
       {children}
-    </AnimatedView>
+    </Animated.View>
   );
 };
 

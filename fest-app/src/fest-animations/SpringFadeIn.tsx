@@ -26,10 +26,6 @@ interface SpringFadeInProps {
   };
 }
 
-const AnimatedView = Animated.createAnimatedComponent(
-  require('react-native').View
-);
-
 export const SpringFadeIn: React.FC<SpringFadeInProps> = ({
   children,
   delay = 0,
@@ -106,8 +102,8 @@ export const SpringFadeIn: React.FC<SpringFadeInProps> = ({
   });
 
   return (
-    <AnimatedView style={[style, animatedStyle]}>
+    <Animated.View style={[style, animatedStyle]}>
       {children}
-    </AnimatedView>
+    </Animated.View>
   );
 };

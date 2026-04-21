@@ -2,7 +2,7 @@
 // Usage: Loading states, data fetching
 
 import React from 'react';
-import { View, StyleSheet, ViewStyle, Dimensions } from 'react-native';
+import { View, StyleSheet, ViewStyle, DimensionValue, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,13 +12,11 @@ import Animated, {
 import { theme } from '../theme';
 
 interface SkeletonProps {
-  width?: number | string;
+  width?: DimensionValue;
   height?: number;
   style?: ViewStyle;
   circle?: boolean;
 }
-
-const AnimatedView = Animated.createAnimatedComponent(View);
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -60,7 +58,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
         style,
       ]}
     >
-      <AnimatedView style={[s.shimmer, shimmerStyle]} />
+      <Animated.View style={[s.shimmer, shimmerStyle]} />
     </View>
   );
 };
