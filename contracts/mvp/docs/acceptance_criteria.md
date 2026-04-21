@@ -36,7 +36,7 @@ All criteria assume authenticated user (phone OTP).
 ## Create Plan from Event
 
 - [ ] Event title, venue, time are prefilled and read-only
-- [ ] Friend list loads from /users/friends (MOCK-ONLY: uses mockUsers until friends API exists)
+- [ ] Friend list loads from /users/friends
 - [ ] Group list loads from /groups
 - [ ] Selecting a group pre-selects its members
 - [ ] Creating plan returns 201 with full plan object
@@ -136,7 +136,7 @@ All criteria assume authenticated user (phone OTP).
 
 - [ ] Shows user name, username, avatar initial
 - [ ] "Сохранённые" shows saved events list
-- [ ] Friends list is MOCK-ONLY (no /users/friends endpoint yet)
+- [ ] Friends list loads from /users/friends
 - [ ] Logout clears tokens, returns to AuthScreen
 - [ ] No "Скоро" or non-functional menu items
 

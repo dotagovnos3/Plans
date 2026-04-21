@@ -1,0 +1,14 @@
+node_modules/
+*.log
+*.txt
+!fest-app/README.txt
+tmole-live.log
+localtunnel.log
+tunnelmole.log
+expo-tunnel.log
+expo-log.txt
+demo.html
+.env
+.env*.local
+.DS_Store
+*.orig.*

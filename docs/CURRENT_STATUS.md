@@ -1,7 +1,7 @@
 # FEST MVP — Current Status
 
-**Last updated**: 2026-04-20
-**State**: Frozen for handoff
+**Last updated**: 2026-04-21
+**State**: Frozen MVP core + beta hardening pass
 
 ## Implementation status
 
@@ -12,7 +12,7 @@
 | 3 | Proposals, voting, finalize/unfinalize, repeat, messages | Done |
 | 4 | WebSocket real-time (messages, proposals, votes, lifecycle, notifications) | Done |
 
-All 4 slices implemented and integrated. No mock data remains — all 7 Zustand stores are API-backed.
+All 4 slices implemented and integrated. All 7 stores are API-backed for active MVP flows.
 
 ## What is real API vs still mock-only
 
@@ -25,7 +25,7 @@ All 4 slices implemented and integrated. No mock data remains — all 7 Zustand 
 | Proposals + votes | Full API-backed |
 | Messages | Full API-backed |
 | Invitations | Full API-backed (atomic accept with 15-participant lock) |
-| Groups | Full API-backed (invite-only member add) |
+| Groups | Full API-backed (list/detail/member reads through backend) |
 | Notifications | Full API-backed, server-created only |
 | Friends | Full API-backed via `GET /users/friends` |
 | WebSocket | Real — push-only, REST is source of truth |
@@ -59,7 +59,8 @@ Quick start:
 - No real-time updates for plan cancellation, completion, or participant changes
 - Max 15 participants per plan
 - Web-only tested for this release
-- `fest-animations/` has type errors, not part of the main app
+- `fest-app/src/fest-animations/**` intentionally excluded from main frontend quality gate (`fest-app/tsconfig.json`)
+- `fest-animations` typecheck is separate (`npx tsc --noEmit -p tsconfig.fest-animations.json`) and currently may fail
 - `plansStore.error` is global — errors from different operations share one banner
 - Notification shape mismatch: WS-pushed notifications use `user_id`/`created_at` (snake_case, matching type), REST-fetched ones get camelized to `userId`/`createdAt` (mismatching the declared `Notification` type)
 
@@ -70,6 +71,13 @@ Quick start:
 - ProfileScreen `handleSaveProfile` is a no-op (no `PATCH /users/me` call wired up yet)
 - `fetchUser` API function exists but is unused by any screen
 - `addFriend`/`removeFriend` API functions exist but are unused by any screen
+
+## Beta hardening updates
+
+- Main quality gate stabilized: backend `npx tsc --noEmit` and frontend `npx tsc --noEmit` (main app scope) are independent from `fest-animations`
+- Seed stabilized for repeat dev runs: deterministic IDs + upserts (no new duplicate seed entities on repeated runs)
+- Friends/groups read-path cleanup completed for active UI flows (no mock fallback paths)
+- Mobile/dev readiness pass: `npx expo start` startup verified; REST+WS critical flows validated via `backend/src/tests/e2e-smoke.ts` and `backend/src/tests/rt2-smoke.ts`
 
 ## Next recommended milestone
 

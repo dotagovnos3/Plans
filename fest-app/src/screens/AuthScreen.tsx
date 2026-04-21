@@ -5,15 +5,47 @@ import { useAuthStore } from '../stores/authStore';
 import { ScreenContainer } from '../components/ScreenContainer';
 
 export const AuthScreen = () => {
-  const [phone, setPhone] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState('7');
   const [code, setCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const { sendOtp, verifyOtp, loading, error, clearError } = useAuthStore();
 
+  const formatPhone = (digits: string) => {
+    const local = digits.slice(1, 11);
+    const part1 = local.slice(0, 3);
+    const part2 = local.slice(3, 6);
+    const part3 = local.slice(6, 8);
+    const part4 = local.slice(8, 10);
+
+    let formatted = '+7';
+    if (local.length > 0) {
+      formatted += ` (${part1}`;
+      if (local.length >= 3) formatted += ')';
+    }
+    if (local.length > 3) formatted += ` ${part2}`;
+    if (local.length > 6) formatted += ` ${part3}`;
+    if (local.length > 8) formatted += ` ${part4}`;
+    return formatted;
+  };
+
+  const normalizePhoneInput = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return '7';
+
+    let normalized = digits;
+    if (normalized[0] === '8') normalized = `7${normalized.slice(1)}`;
+    if (normalized[0] !== '7') normalized = `7${normalized}`;
+    return normalized.slice(0, 11);
+  };
+
+  const formattedPhone = formatPhone(phoneDigits);
+  const apiPhone = `+${phoneDigits}`;
+  const isPhoneComplete = phoneDigits.length === 11;
+
   const handleSendOtp = () => {
-    if (loading || phone.length < 10) return;
+    if (loading || !isPhoneComplete) return;
     clearError();
-    sendOtp(phone).then(() => setOtpSent(true)).catch(() => {});
+    sendOtp(apiPhone).then(() => setOtpSent(true)).catch(() => {});
   };
 
   const handleVerify = () => {
@@ -34,10 +66,10 @@ export const AuthScreen = () => {
           <>
             <TextInput
               style={s.input}
-              placeholder="+7 (999) 123-45-67"
+              placeholder="+7 (941) 223 22 22"
               placeholderTextColor={theme.colors.textTertiary}
-              value={phone}
-              onChangeText={setPhone}
+              value={formattedPhone}
+              onChangeText={(value) => setPhoneDigits(normalizePhoneInput(value))}
               keyboardType="phone-pad"
               autoFocus
               editable={!loading}

@@ -37,7 +37,7 @@ npm run dev
 npm start
 ```
 
-Server starts at `http://localhost:3000`. Health check: `GET /api/health`.
+Server starts at `http://localhost:3001`. Health check: `GET /api/health`.
 
 ## Authentication
 
@@ -47,14 +47,14 @@ Dev OTP: any phone + code `1111`.
 
 ```bash
 # Send OTP
-curl -X POST http://localhost:3000/api/auth/otp/send -H "Content-Type: application/json" -d '{"phone":"+79990000000"}'
+curl -X POST http://localhost:3001/api/auth/otp/send -H "Content-Type: application/json" -d '{"phone":"+79990000000"}'
 
 # Verify
-curl -X POST http://localhost:3000/api/auth/otp/verify -H "Content-Type: application/json" -d '{"phone":"+79990000000","code":"1111"}'
+curl -X POST http://localhost:3001/api/auth/otp/verify -H "Content-Type: application/json" -d '{"phone":"+79990000000","code":"1111"}'
 
 # Use returned access_token as Bearer
 export TOKEN=<access_token>
-curl http://localhost:3000/api/events -H "Authorization: Bearer $TOKEN"
+curl http://localhost:3001/api/events -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Slice 1 Endpoints

@@ -46,6 +46,22 @@ npx expo start --web
 # → http://localhost:8081
 ```
 
+### Frontend mobile dev (terminal 3, optional)
+
+```powershell
+cd E:\FEST\V1\fest-app
+$env:EXPO_PUBLIC_API_BASE_URL="http://<YOUR_LAN_IP>:3001/api"
+npx expo start --go --tunnel
+# Open with Expo Go / emulator from Metro UI
+```
+
+Example:
+
+```powershell
+$env:EXPO_PUBLIC_API_BASE_URL="http://192.168.0.28:3001/api"
+npx expo start --go --tunnel
+```
+
 ## Environment variables
 
 File: `E:\FEST\V1\backend\.env`
@@ -56,6 +72,17 @@ File: `E:\FEST\V1\backend\.env`
 | `JWT_SECRET` | `dev-secret-change-in-prod` | JWT signing key |
 | `OTP_CODE` | `1111` | Mock OTP code for all auth |
 | `PORT` | `3001` | Backend port (must be 3001 — frontend hardcodes this) |
+
+Frontend (runtime env in terminal):
+
+| Variable | Example | Purpose |
+|----------|---------|---------|
+| `EXPO_PUBLIC_API_BASE_URL` | `http://192.168.0.28:3001/api` | API base URL for mobile/dev builds |
+| `EXPO_PUBLIC_WS_BASE_URL` (optional) | `ws://192.168.0.28:3001/api/ws` | WS base override (normally derived from API base) |
+
+Notes:
+- Backend already binds to `0.0.0.0`, so it is reachable from phone on LAN.
+- Web local keeps working by default (`http://localhost:3001/api`) when `EXPO_PUBLIC_API_BASE_URL` is not set.
 
 ## Demo flow
 
@@ -95,12 +122,13 @@ All accounts use OTP code `1111`.
 - **No group chat** — chat is plan-level only
 - **Max 15 participants per plan**
 - **Web-only tested** — mobile builds not verified for this release
-- **fest-animations** — has type errors, not part of the main app
+- **fest-animations** — isolated from main TypeScript gate; check separately with `npx tsc --noEmit -p tsconfig.fest-animations.json` if needed
 
 ## Release checklist
 
-- [ ] `npx tsc --noEmit` passes (0 errors in app code)
+- [ ] `npx tsc --noEmit` passes (main app only, `src/fest-animations/**` excluded)
 - [ ] `npx tsc --noEmit` passes in backend
+- [ ] (optional) `npx tsc --noEmit -p tsconfig.fest-animations.json` reviewed separately
 - [ ] `npx expo export --platform web` succeeds
 - [ ] Backend starts on port 3001
 - [ ] `/api/health` returns `{ status: "ok" }`
@@ -110,3 +138,5 @@ All accounts use OTP code `1111`.
 - [ ] Search returns results
 - [ ] Plan creation succeeds
 - [ ] Invitation accept/decline works
+- [ ] Backend smoke suite passes: `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\tests\e2e-smoke.ts`
+- [ ] Realtime smoke suite passes: `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\tests\rt2-smoke.ts`

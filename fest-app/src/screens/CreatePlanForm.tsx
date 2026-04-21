@@ -31,11 +31,15 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   const planError = usePlansStore((s) => s.error);
   const clearPlanError = usePlansStore((s) => s.clearError);
   const groups = useGroupsStore((s) => s.groups);
+  const fetchGroups = useGroupsStore((s) => s.fetchGroups);
   const { friends: apiFriends, fetchFriends } = useFriendsStore();
 
   const isFromEvent = !!linkedEventId;
 
-  useEffect(() => { fetchFriends(); }, []);
+  useEffect(() => {
+    fetchFriends();
+    fetchGroups();
+  }, [fetchFriends, fetchGroups]);
 
   const [activityType, setActivityType] = useState<ActivityType>(isFromEvent ? 'other' : 'cinema');
   const [title, setTitle] = useState(linkedEventTitle ?? '');
@@ -44,23 +48,31 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   const [preMeetEnabled, setPreMeetEnabled] = useState(false);
   const [preMeetPlace, setPreMeetPlace] = useState('');
   const [preMeetTime, setPreMeetTime] = useState('');
-  const [friends, setFriends] = useState<FriendItem[]>(
-    (() => {
-      const base = apiFriends.map((u) => ({ id: u.id, name: u.name, selected: false }));
-      if (preselectedGroupIds?.length) {
-        const memberIds = new Set<string>();
-        preselectedGroupIds.forEach((gid) => {
-          const group = groups.find((g) => g.id === gid);
-          (group?.members ?? []).forEach((m) => { if (m.user_id !== user?.id) memberIds.add(m.user_id); });
-        });
-        return base.map((f) => ({ ...f, selected: memberIds.has(f.id) }));
-      }
-      return base;
-    })()
-  );
+  const [friends, setFriends] = useState<FriendItem[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(preselectedGroupIds?.[0] ?? null);
   const [step, setStep] = useState<'details' | 'people' | 'confirm'>(isFromEvent || !!preselectedGroupIds?.length ? 'people' : 'details');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setFriends((prev) => {
+      const selectedIds = new Set(prev.filter((friend) => friend.selected).map((friend) => friend.id));
+
+      if (selectedIds.size === 0 && preselectedGroupIds?.length) {
+        preselectedGroupIds.forEach((gid) => {
+          const group = groups.find((item) => item.id === gid);
+          (group?.members ?? []).forEach((member) => {
+            if (member.user_id !== user?.id) selectedIds.add(member.user_id);
+          });
+        });
+      }
+
+      return apiFriends.map((apiFriend) => ({
+        id: apiFriend.id,
+        name: apiFriend.name,
+        selected: selectedIds.has(apiFriend.id),
+      }));
+    });
+  }, [apiFriends, groups, preselectedGroupIds, user?.id]);
 
   const toggleFriend = (id: string) => {
     setFriends((prev) => prev.map((f) => f.id === id ? { ...f, selected: !f.selected } : f));
@@ -79,6 +91,7 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
   };
 
   const selectedCount = friends.filter((f) => f.selected).length;
+  const canProceedToConfirm = selectedCount > 0 || friends.length === 0;
 
   const handleCreate = async () => {
     if (!user || !title.trim() || submitting) return;
@@ -104,7 +117,6 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
       });
       onDone(apiPlanId);
     } catch {
-      onDone('');
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +145,7 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
         </View>
 
         {step === 'details' && (
-          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
+          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
             {isFromEvent && (
               <View style={s.linkedBanner}>
                 <Text style={s.linkedText}>📎 {linkedEventTitle}</Text>
@@ -172,7 +184,7 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
         )}
 
         {step === 'people' && (
-          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
+          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
             {groups.length > 0 && (
               <>
                 <Text style={s.label}>Группы</Text>
@@ -196,14 +208,16 @@ export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVen
               </TouchableOpacity>
             ))}
 
-            <TouchableOpacity style={s.nextBtn} onPress={() => selectedCount > 0 ? setStep('confirm') : null} disabled={selectedCount === 0}>
-              <Text style={[s.nextBtnText, selectedCount === 0 && s.nextBtnTextDisabled]}>Далее →</Text>
+            {friends.length === 0 && <Text style={s.emptyHint}>Нет друзей — можно создать план только для себя</Text>}
+
+            <TouchableOpacity style={s.nextBtn} onPress={() => canProceedToConfirm ? setStep('confirm') : null} disabled={!canProceedToConfirm}>
+              <Text style={[s.nextBtnText, !canProceedToConfirm && s.nextBtnTextDisabled]}>Далее →</Text>
             </TouchableOpacity>
           </ScrollView>
         )}
 
         {step === 'confirm' && (
-          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
+          <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
             <Text style={s.label}>План</Text>
             <View style={s.summaryCard}>
               <Text style={s.summaryTitle}>{title || 'Без названия'}</Text>
@@ -277,4 +291,5 @@ const s = StyleSheet.create({
   createBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: 18, ...Platform.select({ web: { fontSize: 16 } }) },
   createBtnDisabled: { opacity: 0.6 },
   errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.error + '11', marginTop: theme.spacing.md },
+  emptyHint: { ...theme.typography.caption, color: theme.colors.textTertiary, textAlign: 'center', marginTop: theme.spacing.md },
 });

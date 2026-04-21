@@ -1,10 +1,9 @@
 import { getToken } from './client';
 import { camelize } from './client';
+import { WS_BASE } from './client';
 
 type WsEventHandler = (channel: string, event: string, payload: any) => void;
 type ReconnectCallback = () => void;
-
-const WS_BASE = 'ws://localhost:3001/api/ws';
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -145,5 +144,4 @@ export function setOnReconnect(cb: ReconnectCallback) {
 export function getSubscriptions(): Set<string> {
   return new Set(subscriptions);
 }
-
 

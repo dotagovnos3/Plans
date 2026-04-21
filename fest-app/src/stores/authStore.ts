@@ -38,6 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ phone, otpSent: true, loading: false });
     } catch (e: any) {
       set({ loading: false, error: e?.message || 'Ошибка отправки кода' });
+      throw e;
     }
   },
 
@@ -55,6 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       startWs();
     } catch (e: any) {
       set({ loading: false, error: e?.message || 'Неверный код' });
+      throw e;
     }
   },
 

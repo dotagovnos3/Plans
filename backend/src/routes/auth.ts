@@ -2,26 +2,41 @@ import type { FastifyInstance } from 'fastify';
 import { sendOtp, verifyOtp } from '../auth/otp.js';
 import { query } from '../db/pool.js';
 
+function normalizeRuPhone(input: string): string | null {
+  if (typeof input !== 'string') return null;
+  const digits = input.replace(/\D/g, '');
+  if (digits.length < 10) return null;
+
+  let normalized = digits;
+  if (normalized.length === 10) normalized = `7${normalized}`;
+  if (normalized.length === 11 && normalized[0] === '8') normalized = `7${normalized.slice(1)}`;
+  if (normalized.length !== 11 || normalized[0] !== '7') return null;
+
+  return `+${normalized}`;
+}
+
 export async function authRoutes(app: FastifyInstance) {
   app.post('/otp/send', async (request, reply) => {
     const { phone } = request.body as { phone: string };
-    if (!phone || phone.length < 10) return reply.code(400).send({ code: 'INVALID_PHONE', message: 'Invalid phone number' });
-    sendOtp(phone);
+    const normalizedPhone = normalizeRuPhone(phone);
+    if (!normalizedPhone) return reply.code(400).send({ code: 'INVALID_PHONE', message: 'Invalid phone number' });
+    sendOtp(normalizedPhone);
     return reply.send({});
   });
 
   app.post('/otp/verify', async (request, reply) => {
     const { phone, code } = request.body as { phone: string; code: string };
-    if (!phone || !code) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'phone and code required' });
-    if (!verifyOtp(phone, code)) return reply.code(401).send({ code: 'INVALID_OTP', message: 'Invalid or expired OTP' });
+    const normalizedPhone = normalizeRuPhone(phone);
+    if (!normalizedPhone || !code) return reply.code(400).send({ code: 'INVALID_INPUT', message: 'phone and code required' });
+    if (!verifyOtp(normalizedPhone, code)) return reply.code(401).send({ code: 'INVALID_OTP', message: 'Invalid or expired OTP' });
 
-    let user = (await query('SELECT * FROM users WHERE phone = $1', [phone])).rows[0];
+    let user = (await query('SELECT * FROM users WHERE phone = $1', [normalizedPhone])).rows[0];
     if (!user) {
-      const username = 'user_' + phone.slice(-4);
+      const username = 'user_' + normalizedPhone.slice(-4);
       const name = 'Пользователь';
       user = (await query(
         'INSERT INTO users (phone, name, username) VALUES ($1, $2, $3) RETURNING *',
-        [phone, name, username]
+        [normalizedPhone, name, username]
       )).rows[0];
     }
 

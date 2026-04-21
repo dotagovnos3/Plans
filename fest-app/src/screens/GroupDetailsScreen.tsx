@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useGroupsStore } from '../stores/groupsStore';
 import { usePlansStore } from '../stores/plansStore';
-import { formatDateShort } from '../utils/dates';
 import { ACTIVITY_LABELS } from '../types';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
@@ -16,14 +15,38 @@ type Props = NativeStackScreenProps<PlansStackParamList, 'GroupDetails'>;
 export const GroupDetailsScreen = ({ route, navigation }: Props) => {
   const { groupId } = route.params;
   const groups = useGroupsStore((s) => s.groups);
+  const groupsLoading = useGroupsStore((s) => s.loading);
+  const groupsError = useGroupsStore((s) => s.error);
+  const fetchGroup = useGroupsStore((s) => s.fetchGroup);
   const plans = usePlansStore((s) => s.plans);
   const apiCreatePlan = usePlansStore((s) => s.apiCreatePlan);
   const user = useAuthStore((s) => s.user);
   const [creatingPlan, setCreatingPlan] = React.useState(false);
 
+  React.useEffect(() => {
+    fetchGroup(groupId);
+  }, [fetchGroup, groupId]);
+
   const group = groups.find((g) => g.id === groupId);
 
-  if (!group) return <ScreenContainer><View style={s.inner}><EmptyState text="Группа не найдена" /></View></ScreenContainer>;
+  if (!group && groupsLoading) {
+    return (
+      <ScreenContainer>
+        <View style={s.centered}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!group) {
+    return (
+      <ScreenContainer>
+        <View style={s.inner}>
+          {groupsError ? <Text style={s.errorBanner}>{groupsError}</Text> : null}
+          <EmptyState text="Группа не найдена" />
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   const groupMemberIds = new Set((group.members ?? []).map((m) => m.user_id));
   const groupPlans = plans.filter((p) =>
@@ -102,6 +125,7 @@ export const GroupDetailsScreen = ({ route, navigation }: Props) => {
 
 const s = StyleSheet.create({
   inner: { flex: 1, backgroundColor: theme.colors.background },
+  centered: { flex: 1, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center' },
   content: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xxxl, ...Platform.select({ web: { paddingBottom: theme.spacing.xxl } }) },
   backBtn: { marginBottom: Platform.select({ web: theme.spacing.sm, default: theme.spacing.md }) },
   backText: { ...theme.typography.body, color: theme.colors.primary },
@@ -120,4 +144,5 @@ const s = StyleSheet.create({
   createBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md, paddingVertical: Platform.select({ web: theme.spacing.md, default: theme.spacing.xl }), alignItems: 'center', marginTop: theme.spacing.xl },
   createBtnText: { color: theme.colors.textInverse, fontWeight: '700', fontSize: Platform.select({ web: 15, default: 16 }) },
   btnDisabled: { opacity: 0.5 },
+  errorBanner: { ...theme.typography.caption, color: theme.colors.error, textAlign: 'center', padding: theme.spacing.sm, backgroundColor: theme.colors.error + '11', marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.lg },
 });

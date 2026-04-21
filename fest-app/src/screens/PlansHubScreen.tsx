@@ -26,12 +26,14 @@ export const PlansHubScreen = ({ navigation }: Props) => {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const groups = useGroupsStore((s) => s.groups);
   const groupsLoading = useGroupsStore((s) => s.loading);
+  const groupsError = useGroupsStore((s) => s.error);
+  const fetchGroups = useGroupsStore((s) => s.fetchGroups);
   const { invitations, loading: invLoading, error: invError, accept, decline, fetchInvitations } = useInvitationsStore();
   const fetchMyPlans = usePlansStore((s) => s.fetchMyPlans);
   const [accepting, setAccepting] = React.useState<string | null>(null);
   const [declining, setDeclining] = React.useState<string | null>(null);
 
-  React.useEffect(() => { fetchMyPlans(); fetchInvitations(); }, []);
+  React.useEffect(() => { fetchMyPlans(); fetchInvitations(); fetchGroups(); }, [fetchMyPlans, fetchInvitations, fetchGroups]);
 
   const handleAccept = async (id: string) => {
     if (accepting) return;
@@ -73,6 +75,7 @@ export const PlansHubScreen = ({ navigation }: Props) => {
 
         {section === 'active' && plansError && <Text style={s.errorBanner}>{plansError}</Text>}
         {section === 'invitations' && invError && <Text style={s.errorBanner}>{invError}</Text>}
+        {section === 'groups' && groupsError && <Text style={s.errorBanner}>{groupsError}</Text>}
         {(section === 'active' && plansLoading && activePlans.length === 0) || (section === 'invitations' && invLoading && pendingInvitations.length === 0) || (section === 'groups' && groupsLoading && groups.length === 0) ? (
           <View style={s.loader}><ActivityIndicator size="large" color={theme.colors.primary} /></View>
         ) : (

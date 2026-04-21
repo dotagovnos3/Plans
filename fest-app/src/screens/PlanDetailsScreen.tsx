@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Modal, Platform, Alert, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { theme } from '../theme';
 import { usePlansStore } from '../stores/plansStore';
 import { useAuthStore } from '../stores/authStore';
+import { useFriendsStore } from '../stores/friendsStore';
 import { formatDateShort } from '../utils/dates';
 import { ACTIVITY_LABELS, type Plan, type PlanProposal, type Message, type ParticipantStatus } from '../types';
 import { subscribe, unsubscribe } from '../api/ws';
@@ -25,14 +26,19 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   const planError = usePlansStore((s) => s.error);
   const { fetchPlan, apiUpdateParticipantStatus, apiRemoveParticipant, apiCancelPlan, apiCompletePlan, apiFinalize, apiUnfinalize, apiCreateProposal, apiVote, apiUnvote, apiRepeat, apiFetchMessages, apiSendMessage, apiInviteParticipant } = usePlansStore();
   const user = useAuthStore((s) => s.user);
+  const friends = useFriendsStore((s) => s.friends);
+  const friendsLoading = useFriendsStore((s) => s.loading);
+  const fetchFriends = useFriendsStore((s) => s.fetchFriends);
   const [tab, setTab] = useState<'details' | 'chat'>('details');
   const [chatInput, setChatInput] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [sending, setSending] = useState(false);
   const [repeating, setRepeating] = useState(false);
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
 
   React.useEffect(() => { fetchPlan(planId); }, [planId]);
   React.useEffect(() => { if (tab === 'chat') apiFetchMessages(planId); }, [tab, planId]);
+  React.useEffect(() => { fetchFriends(); }, [fetchFriends]);
   React.useEffect(() => {
     const ch = `plan:${planId}`;
     subscribe(ch);
@@ -60,8 +66,11 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
     if (myParticipation) apiUpdateParticipantStatus(planId, user.id, status);
   };
 
-  const handleInviteFriend = (friendId: string) => {
-    apiInviteParticipant(planId, friendId);
+  const handleInviteFriend = async (friendId: string) => {
+    if (invitingUserId || participantUserIds.size >= 15) return;
+    setInvitingUserId(friendId);
+    await apiInviteParticipant(planId, friendId);
+    setInvitingUserId(null);
     setShowInviteModal(false);
   };
 
@@ -88,9 +97,7 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   };
 
   const participantUserIds = new Set((plan.participants || []).map((p) => p.user_id));
-  const nonParticipants = (plan.participants || [])
-    .flatMap((p) => p.user ? [] : [])
-    .filter(() => false);
+  const inviteCandidates = friends.filter((friend) => !participantUserIds.has(friend.id));
 
   return (
     <ScreenContainer>
@@ -125,8 +132,25 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
               <Text style={s.modalTitle}>Пригласить в план</Text>
               {participantUserIds.size >= 15 ? (
                 <Text style={s.modalEmpty}>Максимум участников</Text>
+              ) : friendsLoading ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} style={s.loader} />
+              ) : inviteCandidates.length === 0 ? (
+                <Text style={s.modalEmpty}>Некого приглашать</Text>
               ) : (
-                <Text style={s.modalEmpty}>Введите ID пользователя для приглашения</Text>
+                <ScrollView style={s.modalList} contentContainerStyle={s.modalListContent} keyboardShouldPersistTaps="handled">
+                  {inviteCandidates.map((candidate) => (
+                    <TouchableOpacity
+                      key={candidate.id}
+                      style={[s.inviteRow, invitingUserId === candidate.id && s.btnDisabled]}
+                      onPress={() => handleInviteFriend(candidate.id)}
+                      disabled={invitingUserId !== null}
+                    >
+                      <View style={s.inviteAvatar}><Text style={s.inviteLetter}>{candidate.name[0]}</Text></View>
+                      <Text style={s.inviteName}>{candidate.name}</Text>
+                      <Text style={s.invitePlus}>{invitingUserId === candidate.id ? '...' : '+'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               )}
               <TouchableOpacity style={s.modalCancelBtn} onPress={() => setShowInviteModal(false)}>
                 <Text style={s.modalCancelText}>Закрыть</Text>
@@ -393,7 +417,7 @@ const ChatTab = ({ messages: msgs, input, setInput, onSend, sending, planId, onV
   const getProposal = (refId: string) => plan?.proposals?.find((pr) => pr.id === refId);
 
   return (
-    <View style={s.chatContainer}>
+    <KeyboardAvoidingView style={s.chatContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <FlatList data={[...msgs].reverse()} keyExtractor={(m) => m.id} renderItem={({ item }) => {
         if (item.type === 'proposal_card' && item.reference_id) {
           const prop = getProposal(item.reference_id);
@@ -427,14 +451,14 @@ const ChatTab = ({ messages: msgs, input, setInput, onSend, sending, planId, onV
             <Text style={s.msgText}>{item.text}</Text>
           </View>
         );
-      }} contentContainerStyle={s.chatList} inverted ListEmptyComponent={<EmptyState text="Нет сообщений" />} />
+      }} contentContainerStyle={s.chatList} inverted ListEmptyComponent={<EmptyState text="Нет сообщений" />} keyboardShouldPersistTaps="handled" />
       <View style={s.chatInputRow}>
-        <TextInput style={s.chatInput} placeholder="Сообщение..." placeholderTextColor={theme.colors.textTertiary} value={input} onChangeText={setInput} />
+        <TextInput style={s.chatInput} placeholder="Сообщение..." placeholderTextColor={theme.colors.textTertiary} value={input} onChangeText={setInput} returnKeyType="send" onSubmitEditing={onSend} />
         <TouchableOpacity style={[s.sendBtn, sending && s.btnDisabled]} onPress={onSend} disabled={sending}>
           <Text style={s.sendBtnText}>{sending ? '...' : '→'}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -497,6 +521,8 @@ const s = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: theme.colors.overlay },
   modalContent: { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.borderRadius.xxl, borderTopRightRadius: theme.borderRadius.xxl, padding: theme.spacing.xxl, ...Platform.select({ web: { padding: theme.spacing.lg } }) },
   modalTitle: { ...theme.typography.h3, color: theme.colors.textPrimary, marginBottom: theme.spacing.lg },
+  modalList: { maxHeight: 260 },
+  modalListContent: { paddingBottom: theme.spacing.sm },
   modalInput: { backgroundColor: theme.colors.background, borderRadius: theme.borderRadius.md, padding: theme.spacing.lg, fontSize: 16, color: theme.colors.textPrimary, borderWidth: 1, borderColor: theme.colors.borderLight, marginBottom: theme.spacing.lg },
   modalActions: { flexDirection: 'row', gap: theme.spacing.md },
   modalCancelBtn: { flex: 1, paddingVertical: theme.spacing.lg, borderRadius: theme.borderRadius.md, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },

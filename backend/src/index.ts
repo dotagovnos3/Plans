@@ -52,7 +52,7 @@ app.setErrorHandler((error: any, request: any, reply: any) => {
     return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
   }
   if (error.statusCode) {
-    return reply.code(error.statusCode).send({ code: 'ERROR', message: error.message || 'Request failed' });
+    return reply.code(error.statusCode).send({ code: error.code || 'ERROR', message: error.message || 'Request failed' });
   }
   app.log.error(error);
   return reply.code(500).send({ code: 'INTERNAL_ERROR', message: 'Internal server error' });

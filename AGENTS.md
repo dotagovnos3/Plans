@@ -22,7 +22,8 @@
 | DB seed | `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\db\seed.ts` (workdir: `E:\FEST\V1\backend`) |
 | Dev (web) | `npx expo start --web` → http://localhost:8081 |
 | Dev (mobile) | `npx expo start` |
-| Type check (frontend) | `npx tsc --noEmit` |
+| Type check (frontend main app) | `npx tsc --noEmit` |
+| Type check (fest-animations, optional) | `npx tsc --noEmit -p tsconfig.fest-animations.json` |
 | Type check (backend) | `npx tsc --noEmit` (workdir: `E:\FEST\V1\backend`) |
 | Smoke build | `npx expo export --platform web` |
 | Start backend | `E:\FEST\V1\backend\node_modules\.bin\tsx.cmd E:\FEST\V1\backend\src\index.ts` (workdir: `E:\FEST\V1\backend`) |
@@ -143,6 +144,7 @@ None — all stores are API-backed. `friendsStore` uses `GET /users/friends`.
 - `CreatePlanForm` returns `planId` via `onDone` callback, not via navigation params
 - Expo SDK 54 peer dep conflicts — always `--legacy-peer-deps`
 - `package.json` has no `"test"` script — `npm test` errors, not just no-op
+- Frontend quality gate excludes `src/fest-animations/**` in `fest-app/tsconfig.json`; validate this folder separately with `tsconfig.fest-animations.json` when needed
 - **Windows Date serialization bug**: pg driver returns JS Date objects for `timestamptz` columns. `Date.toString()` on Windows produces `GMT+0300` format which PostgreSQL rejects. Always convert via `Date.toISOString()` or use parameterized queries — never string-interpolate Date values into SQL.
 - `camelize()` in `api/client.ts` converts all `snake_case` API keys to `camelCase` for frontend types. Backend responses use `snake_case`, frontend uses `camelCase`.
 - Backend `POST /plans` creates plan + participants + invitations + notifications atomically in one transaction. Frontend `apiCreatePlan` only calls this endpoint — no local plan creation.

@@ -1,4 +1,36 @@
-const API_BASE = 'http://localhost:3001/api';
+import { NativeModules, Platform } from 'react-native';
+
+const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, '');
+
+const getApiBase = () => {
+  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (fromEnv) return trimTrailingSlashes(fromEnv);
+
+  if (Platform.OS === 'web') return 'http://localhost:3001/api';
+
+  const scriptURL = NativeModules.SourceCode?.scriptURL || '';
+  const match = scriptURL.match(/https?:\/\/([^/:]+)/);
+  const host = match?.[1] || 'localhost';
+  return `http://${host}:3001/api`;
+};
+
+const getWsBase = (apiBase: string) => {
+  const fromEnv = process.env.EXPO_PUBLIC_WS_BASE_URL?.trim();
+  if (fromEnv) return trimTrailingSlashes(fromEnv);
+
+  try {
+    const parsed = new URL(apiBase);
+    const protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+    const basePath = parsed.pathname.replace(/\/+$/, '');
+    const wsPath = basePath.endsWith('/api') ? `${basePath}/ws` : '/api/ws';
+    return `${protocol}//${parsed.host}${wsPath}`;
+  } catch {
+    return 'ws://localhost:3001/api/ws';
+  }
+};
+
+export const API_BASE = getApiBase();
+export const WS_BASE = getWsBase(API_BASE);
 
 let authToken: string | null = null;
 
@@ -18,7 +50,17 @@ export const api = async <T>(path: string, options: { method?: string; body?: un
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw { status: res.status, body: text };
+    let payload: any = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {}
+
+    const message = payload?.message || `HTTP ${res.status}`;
+    const error: any = new Error(message);
+    error.status = res.status;
+    error.code = payload?.code;
+    error.body = payload ?? text;
+    throw error;
   }
 
   const contentType = res.headers.get('content-type') || '';

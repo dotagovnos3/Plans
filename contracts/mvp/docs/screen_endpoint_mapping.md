@@ -67,7 +67,7 @@ Date filters (today/week/weekend) are converted to `date_from`/`date_to` query p
 
 | Action | Method | Endpoint | Optimistic | Server-confirmed |
 |---|---|---|---|---|
-| Load friends | **MOCK-ONLY** — uses `mockUsers` (no GET /users/friends yet) | — | — | — |
+| Load friends | GET | /users/friends?status=accepted | — | — |
 | Load groups | GET | /groups | — | — |
 | Create plan | POST | /plans | — | yes (atomic: plan + participants + invitations + notifications + system message) |
 
@@ -80,7 +80,7 @@ Date filters (today/week/weekend) are converted to `date_from`/`date_to` query p
 | Action | Method | Endpoint | Optimistic | Server-confirmed |
 |---|---|---|---|---|
 | Load event (for prefill) | GET | /events/{id} | — | — |
-| Load friends | **MOCK-ONLY** — uses `mockUsers` (no GET /users/friends yet) | — | — | — |
+| Load friends | GET | /users/friends?status=accepted | — | — |
 | Load groups | GET | /groups | — | — |
 | Create plan with linked event | POST | /plans (with linked_event_id) | — | yes |
 
@@ -163,5 +163,5 @@ Notifications are created server-side only. No client-side notification creation
 | Load profile | GET | /users/me | — | — |
 | Edit profile | PATCH | /users/me {name, username, avatar_url} | — | yes |
 | Load saved events | GET | /events (client filters by saved IDs, or server endpoint with ?saved=true) | — | — |
-| Load friends | **MOCK-ONLY** — uses `mockUsers` (no GET /users/friends yet) | — | — | — |
+| Load friends | GET | /users/friends?status=accepted | — | — |
 | Logout | client-side | discard tokens | — | — |
