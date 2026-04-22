@@ -8,6 +8,8 @@ import { useFonts, Unbounded_500Medium, Unbounded_700Bold } from '@expo-google-f
 import { theme } from './src/theme';
 import { useAuthStore } from './src/stores/authStore';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { isOnboardingComplete, markOnboardingComplete } from './src/utils/onboardingStorage';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { CreatePlanScreen } from './src/screens/CreatePlanScreen';
@@ -133,6 +135,32 @@ function usePendingJoinCapture() {
 
 const UnauthenticatedShell = () => {
   usePendingJoinCapture();
+  const [onboardingResolved, setOnboardingResolved] = React.useState(false);
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    isOnboardingComplete().then((done) => {
+      if (cancelled) return;
+      setShowOnboarding(!done);
+      setOnboardingResolved(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const finishOnboarding = React.useCallback(() => {
+    markOnboardingComplete();
+    setShowOnboarding(false);
+  }, []);
+
+  if (!onboardingResolved) {
+    return (
+      <View style={s.fontLoader}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+  if (showOnboarding) return <OnboardingScreen onFinish={finishOnboarding} />;
   return <AuthScreen />;
 };
 

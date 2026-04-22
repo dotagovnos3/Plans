@@ -155,7 +155,13 @@ export const NotificationsScreen = ({ navigation }: Props) => {
               contentContainerStyle={s.list}
               refreshing={loading && notifications.length > 0}
               onRefresh={fetchNotifications}
-              ListEmptyComponent={<EmptyState text="Нет уведомлений" />}
+              ListEmptyComponent={
+                <EmptyState
+                  icon="🔔"
+                  title="Пока тихо"
+                  body="Когда друзья позовут или что-то изменится — сообщим"
+                />
+              }
             />
           )}
         </View>
