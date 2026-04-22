@@ -79,10 +79,12 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     try {
       const users = await usersApi.searchUsers(trimmed);
       if (get().searchQuery === q) {
-        set({ searchResults: users, searchLoading: false });
+        set({ searchResults: users, searchLoading: false, error: null });
       }
     } catch (e: any) {
-      set({ searchLoading: false, error: e?.message || 'Ошибка поиска' });
+      if (get().searchQuery === q) {
+        set({ searchLoading: false, error: e?.message || 'Ошибка поиска' });
+      }
     }
   },
 
