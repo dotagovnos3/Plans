@@ -186,9 +186,7 @@ export const ProfileScreen = () => {
                 data={data}
                 keyExtractor={(u) => u.id}
                 renderItem={({ item, index }) => {
-                  const isFriend = hasQuery
-                    ? item.friendship_status === 'friend'
-                    : true;
+                  const status = hasQuery ? item.friendship_status ?? null : 'friend';
                   const busy = mutatingId === item.id;
                   return (
                     <FadeIn delay={80 + index * 30} distance={10}>
@@ -199,28 +197,51 @@ export const ProfileScreen = () => {
                             <Text style={s.friendName}>{item.name}</Text>
                             <Text style={s.friendUsername}>@{item.username}</Text>
                           </View>
-                          {hasQuery ? (
-                            isFriend ? (
-                              <Pressable
-                                style={s.friendActionGhost}
-                                onPress={() => handleRemoveFriend(item.id)}
-                                activeScale={0.9}
-                                hitSlop={4}
-                                disabled={busy}
-                              >
-                                <Text style={s.friendActionGhostText}>{busy ? '...' : 'В друзьях'}</Text>
-                              </Pressable>
-                            ) : (
+                          {status === 'friend' ? (
+                            <Pressable
+                              style={s.friendActionGhost}
+                              onPress={() => handleRemoveFriend(item.id)}
+                              activeScale={0.9}
+                              hitSlop={4}
+                              disabled={busy}
+                            >
+                              <Text style={s.friendActionGhostText}>{busy ? '...' : 'В друзьях'}</Text>
+                            </Pressable>
+                          ) : status === 'request_sent' ? (
+                            <View style={s.friendActionGhost}>
+                              <Text style={s.friendActionGhostText}>{busy ? '...' : 'Заявка отправлена'}</Text>
+                            </View>
+                          ) : status === 'request_received' ? (
+                            <View style={s.friendActionPair}>
                               <Pressable
                                 style={s.friendActionPrimary}
-                                onPress={() => handleAddFriend(item.id)}
+                                onPress={() => handleAcceptRequest(item.id)}
                                 activeScale={0.9}
                                 hitSlop={4}
                                 disabled={busy}
                               >
-                                <Text style={s.friendActionPrimaryText}>{busy ? '...' : '＋ Добавить'}</Text>
+                                <Text style={s.friendActionPrimaryText}>{busy ? '...' : 'Принять'}</Text>
                               </Pressable>
-                            )
+                              <Pressable
+                                style={s.friendActionGhost}
+                                onPress={() => handleDeclineRequest(item.id)}
+                                activeScale={0.9}
+                                hitSlop={4}
+                                disabled={busy}
+                              >
+                                <Text style={s.friendActionGhostText}>✕</Text>
+                              </Pressable>
+                            </View>
+                          ) : hasQuery ? (
+                            <Pressable
+                              style={s.friendActionPrimary}
+                              onPress={() => handleAddFriend(item.id)}
+                              activeScale={0.9}
+                              hitSlop={4}
+                              disabled={busy}
+                            >
+                              <Text style={s.friendActionPrimaryText}>{busy ? '...' : '＋ Добавить'}</Text>
+                            </Pressable>
                           ) : null}
                         </Pressable>
                       </Tilt>
@@ -372,4 +393,5 @@ const s = StyleSheet.create({
   friendActionPrimaryText: { ...theme.typography.captionBold, color: theme.colors.textInverse, fontWeight: '700' },
   friendActionGhost: { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, borderRadius: theme.borderRadius.full, borderWidth: 1, borderColor: theme.colors.primary + '55' },
   friendActionGhostText: { ...theme.typography.captionBold, color: theme.colors.primary, fontWeight: '700' },
+  friendActionPair: { flexDirection: 'row', gap: theme.spacing.xs },
 });
