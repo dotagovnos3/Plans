@@ -11,7 +11,7 @@ import { subscribe, unsubscribe } from '../api/ws';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenContainer } from '../components/ScreenContainer';
 import type { PlansStackParamList } from '../navigation/types';
-import { Aurora, FadeIn, Pressable, Badge, TabIndicator, Tab, Confetti } from '../motion';
+import { Aurora, FadeIn, Pressable, Badge, TabIndicator, Tab, Confetti, hapticSuccess } from '../motion';
 
 type Props = NativeStackScreenProps<PlansStackParamList, 'PlanDetails'>;
 
@@ -125,7 +125,7 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
         </FadeIn>
 
         {tab === 'details' ? (
-          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={async (id, pId, tId) => { await apiFinalize(id, pId, tId); setConfettiTrigger(true); }} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} repeating={repeating} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
+          <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={async (id, pId, tId) => { await apiFinalize(id, pId, tId); setConfettiTrigger(true); hapticSuccess(); }} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} repeating={repeating} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
         ) : (
           <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} sending={sending} planId={planId} onVote={apiVote} onUnvote={apiUnvote} userId={user.id} />
         )}

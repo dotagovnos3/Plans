@@ -10,6 +10,7 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { springs } from './springs';
+import { useReduceMotion } from './a11y';
 
 type Direction = 'up' | 'down' | 'left' | 'right' | 'none';
 
@@ -29,12 +30,14 @@ export const FadeIn = ({
   direction = 'up',
   style,
 }: Props) => {
-  const progress = useSharedValue(0);
+  const reduce = useReduceMotion();
+  const progress = useSharedValue(reduce ? 1 : 0);
 
   React.useEffect(() => {
+    if (reduce) { progress.value = 1; return; }
     progress.value = withDelay(delay, withSpring(1, springs.entry));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reduce]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const opacity = interpolate(progress.value, [0, 1], [0, 1], Extrapolation.CLAMP);
@@ -103,9 +106,10 @@ export const Pulse = ({
   duration?: number;
   style?: StyleProp<ViewStyle>;
 }) => {
+  const reduce = useReduceMotion();
   const v = useSharedValue(from);
   React.useEffect(() => {
-    if (!enabled) {
+    if (!enabled || reduce) {
       v.value = from;
       return;
     }
@@ -118,7 +122,7 @@ export const Pulse = ({
     animate();
     const t = setInterval(animate, duration);
     return () => clearInterval(t);
-  }, [enabled, from, to, duration]);
+  }, [enabled, from, to, duration, reduce]);
   const animated = useAnimatedStyle(() => ({
     transform: [{ scale: v.value }],
   }));

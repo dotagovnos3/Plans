@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { theme } from '../theme';
 import { easings } from './springs';
+import { useReduceMotion } from './a11y';
 
 type Props = {
   intensity?: 'subtle' | 'strong';
@@ -22,11 +23,13 @@ type Props = {
 // Drifts slowly, shifts hue — creates a living, premium background.
 // No SVG dependency — just blurred circles with mix-blend on web.
 export const Aurora = ({ intensity = 'subtle', style }: Props) => {
-  const drift = useSharedValue(0);
+  const reduce = useReduceMotion();
+  const drift = useSharedValue(reduce ? 0.5 : 0);
 
   React.useEffect(() => {
+    if (reduce) { drift.value = 0.5; return; }
     drift.value = withRepeat(withTiming(1, { duration: easings.drift }), -1, true);
-  }, []);
+  }, [reduce]);
 
   const baseOpacity = intensity === 'strong' ? 0.42 : 0.24;
 

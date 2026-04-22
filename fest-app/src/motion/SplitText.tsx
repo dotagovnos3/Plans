@@ -10,6 +10,7 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { springs } from './springs';
+import { useReduceMotion } from './a11y';
 
 type Props = {
   text: string;
@@ -57,12 +58,14 @@ const Letter = ({
   distance: number;
   style?: StyleProp<TextStyle>;
 }) => {
-  const progress = useSharedValue(0);
+  const reduce = useReduceMotion();
+  const progress = useSharedValue(reduce ? 1 : 0);
 
   React.useEffect(() => {
+    if (reduce) { progress.value = 1; return; }
     progress.value = withDelay(delay, withSpring(1, springs.entry));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reduce]);
 
   const animated = useAnimatedStyle(() => {
     const translateY = interpolate(progress.value, [0, 1], [distance, 0], Extrapolation.CLAMP);

@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { theme } from '../theme';
 import { springs } from './springs';
+import { useReduceMotion } from './a11y';
 
 type Props = {
   count: number;
@@ -32,11 +33,13 @@ export const TabIndicator = ({
   height,
   gap = 0,
 }: Props) => {
+  const reduce = useReduceMotion();
   const progress = useSharedValue(activeIndex);
 
   React.useEffect(() => {
+    if (reduce) { progress.value = activeIndex; return; }
     progress.value = withSpring(activeIndex, springs.morph);
-  }, [activeIndex]);
+  }, [activeIndex, reduce]);
 
   const tabWidth = count > 0 ? containerWidth / count : 0;
 
@@ -92,10 +95,12 @@ export const Tab = ({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) => {
+  const reduce = useReduceMotion();
   const opacity = useSharedValue(active ? 1 : 0.55);
   React.useEffect(() => {
+    if (reduce) { opacity.value = active ? 1 : 0.55; return; }
     opacity.value = withSpring(active ? 1 : 0.55, springs.smooth);
-  }, [active]);
+  }, [active, reduce]);
   const animated = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return <Animated.View style={[style, animated]}>{children}</Animated.View>;
 };

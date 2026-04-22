@@ -7,3 +7,5 @@ export { TabIndicator, Tab } from './TabIndicator';
 export { Confetti, PulseHalo } from './Confetti';
 export { Badge, NotificationBell, AnimatedCount } from './Indicators';
 export { Tilt } from './Tilt';
+export { useReduceMotion } from './a11y';
+export { hapticTap, hapticSuccess, hapticWarning, hapticSelection } from './haptics';
