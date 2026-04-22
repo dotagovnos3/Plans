@@ -76,6 +76,16 @@ async function migrate() {
   finalSql = finalSql.replace(/CREATE\s+INDEX\s+(?!IF\s+NOT\s+EXISTS)/gi, 'CREATE INDEX IF NOT EXISTS ');
   finalSql = finalSql.replace(/CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS/gi, 'CREATE EXTENSION IF NOT EXISTS');
 
+  // Pre-apply additive column changes introduced after the initial schema, so
+  // that any later `CREATE INDEX` in 001_init.sql that references the new
+  // column finds it. Must run BEFORE executing init.sql statements.
+  const tablesResult = await pool.query(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'plans'`
+  );
+  if (tablesResult.rows.length > 0) {
+    await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS share_token text`);
+  }
+
   // Handle constraint creation more gracefully
   console.log('Running filtered migration...');
 
@@ -115,8 +125,8 @@ async function migrate() {
     }
   }
 
-  // Idempotent column additions introduced after the initial schema.
-  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS share_token text`);
+  // Ensure unique index exists (init.sql's plain CREATE INDEX is non-unique; we
+  // also want a UNIQUE constraint for safe token lookup).
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_plans_share_token_unique ON plans (share_token)`);
   // Backfill tokens for rows created before this column existed.
   const { rows: missing } = await pool.query(`SELECT id FROM plans WHERE share_token IS NULL`);
