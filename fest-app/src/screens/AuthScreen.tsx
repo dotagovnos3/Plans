@@ -246,9 +246,9 @@ const s = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   hero: {
+    fontFamily: theme.fonts.display,
     fontSize: Platform.OS === 'web' ? 76 : 60,
     lineHeight: Platform.OS === 'web' ? 82 : 66,
-    fontWeight: '900',
     color: theme.colors.primaryDark,
     letterSpacing: -2.5,
   },

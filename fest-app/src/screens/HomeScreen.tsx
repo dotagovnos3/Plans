@@ -264,16 +264,16 @@ const s = StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   brandCity: {
+    fontFamily: theme.fonts.displayMedium,
     fontSize: 12,
-    fontWeight: '700',
     letterSpacing: 2,
     textTransform: 'uppercase',
     color: theme.colors.textSecondary,
   },
   heroTitle: {
+    fontFamily: theme.fonts.display,
     fontSize: Platform.OS === 'web' ? 52 : 44,
     lineHeight: Platform.OS === 'web' ? 56 : 48,
-    fontWeight: '900',
     color: theme.colors.primaryDark,
     letterSpacing: -2,
     marginBottom: theme.spacing.sm,
