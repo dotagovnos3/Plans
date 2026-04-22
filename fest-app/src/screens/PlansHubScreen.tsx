@@ -182,7 +182,14 @@ export const PlansHubScreen = ({ navigation }: Props) => {
                     />
                   )}
                   contentContainerStyle={s.list}
-                  ListEmptyComponent={<EmptyState text="Нет активных планов" />}
+                  ListEmptyComponent={
+                    <EmptyState
+                      icon="🎬"
+                      title="Пока ничего не запланировано"
+                      body="Найдите событие на Главной или создайте свой план"
+                      cta={{ label: 'Создать план', onPress: () => (navigation as any).navigate('CreateTab') }}
+                    />
+                  }
                 />
               )}
               {section === 'invitations' && (
@@ -206,7 +213,13 @@ export const PlansHubScreen = ({ navigation }: Props) => {
                     />
                   )}
                   contentContainerStyle={s.list}
-                  ListEmptyComponent={<EmptyState text="Нет приглашений" />}
+                  ListEmptyComponent={
+                    <EmptyState
+                      icon="📨"
+                      title="Входящих приглашений нет"
+                      body="Друзья позовут — тут появятся"
+                    />
+                  }
                 />
               )}
               {section === 'groups' && (
@@ -221,7 +234,13 @@ export const PlansHubScreen = ({ navigation }: Props) => {
                     />
                   )}
                   contentContainerStyle={s.list}
-                  ListEmptyComponent={<EmptyState text="Нет групп" />}
+                  ListEmptyComponent={
+                    <EmptyState
+                      icon="👥"
+                      title="Групп пока нет"
+                      body="Группы помогают собирать компанию под одно событие"
+                    />
+                  }
                 />
               )}
               {section === 'past' && (
@@ -237,7 +256,13 @@ export const PlansHubScreen = ({ navigation }: Props) => {
                     />
                   )}
                   contentContainerStyle={s.list}
-                  ListEmptyComponent={<EmptyState text="Нет прошедших планов" />}
+                  ListEmptyComponent={
+                    <EmptyState
+                      icon="🕰"
+                      title="История пустая"
+                      body="Сюда попадут завершённые планы"
+                    />
+                  }
                 />
               )}
             </>

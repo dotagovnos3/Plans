@@ -217,8 +217,18 @@ export const HomeScreen = () => {
                   <View key={i} style={s.skeletonCard} />
                 ))}
               </View>
+            ) : categoryFilter ? (
+              <EmptyState
+                icon="🎯"
+                title="Нет событий в этой категории"
+                cta={{ label: 'Сбросить фильтр', onPress: () => setCategoryFilter(null) }}
+              />
             ) : (
-              <EmptyState text="Нет мероприятий" />
+              <EmptyState
+                icon="🎯"
+                title="Нет мероприятий"
+                body="Скоро здесь появятся новые события"
+              />
             )
           }
         />

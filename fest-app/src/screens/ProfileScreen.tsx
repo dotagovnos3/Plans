@@ -98,7 +98,13 @@ export const ProfileScreen = () => {
               </FadeIn>
             )}
             contentContainerStyle={s.list}
-            ListEmptyComponent={<EmptyState text="Ничего не сохранено" />}
+            ListEmptyComponent={
+              <EmptyState
+                icon="⭐"
+                title="Нет сохранённых"
+                body="Тапните ☆ на карточке события, чтобы вернуться позже"
+              />
+            }
           />
         </View>
       </ScreenContainer>
@@ -251,7 +257,19 @@ export const ProfileScreen = () => {
                 contentContainerStyle={s.list}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
-                  <EmptyState text={hasQuery ? 'Никого не найдено' : 'Нет друзей — попробуйте найти кого-то выше'} />
+                  hasQuery ? (
+                    <EmptyState
+                      icon="🫥"
+                      title="Ничего не нашлось"
+                      body="Попробуйте другой запрос"
+                    />
+                  ) : (
+                    <EmptyState
+                      icon="🤝"
+                      title="Пока один"
+                      body="Найдите друзей в поиске выше"
+                    />
+                  )
                 }
               />
             )}

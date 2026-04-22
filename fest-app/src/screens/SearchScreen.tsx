@@ -193,7 +193,21 @@ export const SearchScreen = () => {
             keyExtractor={(e) => e.id}
             renderItem={renderItem}
             contentContainerStyle={s.list}
-            ListEmptyComponent={searched && !loading ? <EmptyState text="Ничего не найдено" /> : null}
+            ListEmptyComponent={
+              loading ? null : searched ? (
+                <EmptyState
+                  icon="🫥"
+                  title="Ничего не нашлось"
+                  body="Попробуйте другой запрос"
+                />
+              ) : (
+                <EmptyState
+                  icon="🔍"
+                  title="Что ищете?"
+                  body="Пробуйте названия мест или категории"
+                />
+              )
+            }
             showsVerticalScrollIndicator={false}
             refreshing={loading}
             onRefresh={doSearch}
