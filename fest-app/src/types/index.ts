@@ -1,3 +1,5 @@
+export type FriendshipStatus = 'friend' | 'request_sent' | 'request_received' | null;
+
 export interface User {
   id: string;
   phone: string;
@@ -5,6 +7,7 @@ export interface User {
   username: string;
   avatar_url: string | null;
   created_at: string;
+  friendship_status?: FriendshipStatus;
 }
 
 export interface Friendship {
@@ -178,7 +181,8 @@ export type NotificationType =
   | 'event_time_changed'
   | 'event_cancelled'
   | 'plan_reminder'
-  | 'plan_completed';
+  | 'plan_completed'
+  | 'friend_request';
 
 export interface Notification {
   id: string;
