@@ -20,6 +20,7 @@ import { GroupDetailsScreen } from './src/screens/GroupDetailsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { VenueScreen } from './src/screens/VenueScreen';
 import { PublicPlanScreen } from './src/screens/PublicPlanScreen';
+import { PublicProfileScreen } from './src/screens/PublicProfileScreen';
 import type { HomeStackParamList, PlansStackParamList, RootStackParamList } from './src/navigation/types';
 import { clearPendingJoinToken, extractShareTokenFromUrl, getPendingJoinToken, setPendingJoinToken } from './src/utils/pendingJoin';
 
@@ -74,6 +75,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       PublicPlan: 'p/:token',
+      PublicProfile: 'u/:userId',
       Notifications: 'notifications',
       MainTabs: {
         screens: {
@@ -105,6 +107,7 @@ const AppNavigator = () => {
         <RootStack.Screen name="MainTabs" component={MainTabs} />
         <RootStack.Screen name="Notifications" component={NotificationsScreen} />
         <RootStack.Screen name="PublicPlan" component={PublicPlanScreen} />
+        <RootStack.Screen name="PublicProfile" component={PublicProfileScreen} />
       </RootStack.Navigator>
     </NavigationContainer>
   );

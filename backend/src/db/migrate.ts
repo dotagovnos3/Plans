@@ -112,8 +112,11 @@ async function migrate() {
     }
   }
 
-  // Idempotent enum additions for values introduced after the initial schema.
+  // Additive enum value migrations (idempotent) — keep newest values at the bottom.
+  // Postgres supports ADD VALUE IF NOT EXISTS since 9.6. These run against both
+  // fresh and already-initialized databases.
   const ENUM_ADDITIONS: Array<{ type: string; value: string }> = [
+    { type: 'notification_type', value: 'friend_request' },
     { type: 'notification_type', value: 'plan_join_via_link' },
   ];
   for (const { type, value } of ENUM_ADDITIONS) {
@@ -147,6 +150,7 @@ async function migrate() {
     }
     console.log(`Backfilled share_token for ${missing.length} plans.`);
   }
+
 
   console.log('Migration complete.');
   await pool.end();

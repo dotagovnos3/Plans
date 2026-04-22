@@ -16,4 +16,5 @@ export type RootStackParamList = {
   MainTabs: undefined;
   Notifications: undefined;
   PublicPlan: { token: string };
+  PublicProfile: { userId: string };
 };
