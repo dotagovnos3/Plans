@@ -56,25 +56,26 @@ export async function invitationRoutes(app: FastifyInstance) {
         const plan = (await client.query('SELECT id FROM plans WHERE id = $1 FOR UPDATE', [inv.target_id])).rows[0];
         if (!plan) { await client.query('ROLLBACK'); client.release(); return reply.code(404).send({ code: 'NOT_FOUND', message: 'Plan not found' }); }
 
-        const existing = (await client.query('SELECT 1 FROM plan_participants WHERE plan_id = $1 AND user_id = $2', [inv.target_id, userId])).rows[0];
-        if (existing) {
-          await client.query("UPDATE invitations SET status = 'accepted' WHERE id = $1", [id]);
-          await client.query('COMMIT');
-          client.release();
-          const updated = (await query('SELECT * FROM invitations WHERE id = $1', [id])).rows[0];
-          let planStub = (await query('SELECT id, title, activity_type, lifecycle_state, creator_id, created_at FROM plans WHERE id = $1', [inv.target_id])).rows[0] || null;
-          return { invitation: { ...updated, plan: planStub, group: null } };
-        }
-
-        const count = (await client.query('SELECT COUNT(*) as c FROM plan_participants WHERE plan_id = $1', [inv.target_id])).rows[0].c;
-        if (parseInt(count) >= 15) {
-          await client.query('ROLLBACK');
-          client.release();
-          return reply.code(409).send({ code: 'PLAN_FULL', message: 'Plan has max 15 participants' });
+        // A 'plan_participants' row usually already exists at status='invited'
+        // (created by POST /plans + POST /plans/:id/participants). When that's
+        // the case, accepting should flip the status to 'going' — not fail the
+        // 15-participant cap (the row is already counted) and not skip the WS
+        // notification downstream.
+        const existing = (await client.query('SELECT status FROM plan_participants WHERE plan_id = $1 AND user_id = $2', [inv.target_id, userId])).rows[0];
+        if (!existing) {
+          const count = (await client.query('SELECT COUNT(*) as c FROM plan_participants WHERE plan_id = $1', [inv.target_id])).rows[0].c;
+          if (parseInt(count) >= 15) {
+            await client.query('ROLLBACK');
+            client.release();
+            return reply.code(409).send({ code: 'PLAN_FULL', message: 'Plan has max 15 participants' });
+          }
         }
 
         await client.query("UPDATE invitations SET status = 'accepted' WHERE id = $1", [id]);
-        await client.query("INSERT INTO plan_participants (plan_id, user_id, status) VALUES ($1, $2, 'going')", [inv.target_id, userId]);
+        await client.query(
+          "INSERT INTO plan_participants (plan_id, user_id, status) VALUES ($1, $2, 'going') ON CONFLICT (plan_id, user_id) DO UPDATE SET status = 'going'",
+          [inv.target_id, userId]
+        );
       } else if (inv.type === 'group') {
         await client.query("UPDATE invitations SET status = 'accepted' WHERE id = $1", [id]);
         await client.query("INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT (group_id, user_id) DO NOTHING", [inv.target_id, userId]);
@@ -104,7 +105,10 @@ export async function invitationRoutes(app: FastifyInstance) {
           id: r.id, plan_id: r.plan_id, user_id: r.user_id, status: r.status, joined_at: r.joined_at,
           user: { id: r.u_id, phone: r.u_phone, name: r.u_name, username: r.u_username, avatar_url: r.u_avatar, created_at: r.u_created },
         };
-        (app as any).wsEmit(`plan:${updated.target_id}`, 'plan.participant.added', { plan_id: updated.target_id, participant });
+        // Accept usually flips status 'invited' → 'going' on an existing
+        // row, so emit 'updated' rather than 'added'. FE wsHandler refetches
+        // the plan for both, so this is semantic only.
+        (app as any).wsEmit(`plan:${updated.target_id}`, 'plan.participant.updated', { plan_id: updated.target_id, participant });
       }
     }
 
