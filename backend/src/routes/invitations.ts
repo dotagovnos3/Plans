@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { pool, query } from '../db/pool.js';
+import { track } from '../observability/analytics.js';
 
 export async function invitationRoutes(app: FastifyInstance) {
   app.get('/', { preHandler: [(app as any).authenticate] }, async (request) => {
@@ -43,6 +44,7 @@ export async function invitationRoutes(app: FastifyInstance) {
     if (status === 'declined') {
       await query("UPDATE invitations SET status = 'declined' WHERE id = $1", [id]);
       const updated = (await query('SELECT * FROM invitations WHERE id = $1', [id])).rows[0];
+      track(userId, 'invite_declined', { invitation_id: id, type: inv.type, target_id: inv.target_id });
       return { invitation: { ...updated, plan: null, group: null } };
     }
 
@@ -112,6 +114,7 @@ export async function invitationRoutes(app: FastifyInstance) {
       }
     }
 
+    track(userId, 'invite_accepted', { invitation_id: id, type: updated.type, target_id: updated.target_id });
     return { invitation: { ...updated, plan, group } };
   });
 }

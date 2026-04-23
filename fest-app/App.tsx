@@ -1,4 +1,8 @@
 import React from 'react';
+import { initSentry } from './src/utils/sentry';
+
+initSentry();
+
 import { NavigationContainer, createNavigationContainerRef, type LinkingOptions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';

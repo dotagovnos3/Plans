@@ -1,4 +1,10 @@
 import 'dotenv/config';
+import { initSentry, captureError } from './observability/sentry.js';
+import { initAnalytics, shutdownAnalytics } from './observability/analytics.js';
+
+initSentry();
+initAnalytics();
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
@@ -98,13 +104,22 @@ app.setErrorHandler((error: any, request: any, reply: any) => {
     return reply.code(error.statusCode).send({ code: error.code || 'ERROR', message: error.message || 'Request failed' });
   }
   app.log.error(error);
+  captureError(error, { route: request?.routerPath, method: request?.method });
   return reply.code(500).send({ code: 'INTERNAL_ERROR', message: 'Internal server error' });
 });
+
+const shutdown = async () => {
+  await shutdownAnalytics();
+  process.exit(0);
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 try {
   await app.listen({ port: PORT, host: '0.0.0.0' });
   app.log.info(`Backend running on http://localhost:${PORT} (env=${NODE_ENV})`);
 } catch (err) {
   app.log.error(err);
+  captureError(err);
   process.exit(1);
 }
