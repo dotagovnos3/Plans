@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { sendOtp, verifyOtp, type VerifyOtpResult } from '../auth/otp.js';
 import { query } from '../db/pool.js';
+import { track } from '../observability/analytics.js';
 
 function normalizeRuPhone(input: string): string | null {
   if (typeof input !== 'string') return null;
@@ -45,6 +46,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     let user = (await query('SELECT * FROM users WHERE phone = $1', [normalizedPhone])).rows[0];
+    const isNewUser = !user;
     if (!user) {
       const username = 'user_' + normalizedPhone.slice(-4);
       const name = 'Пользователь';
@@ -56,6 +58,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const accessToken = app.jwt.sign({ userId: user.id }, { expiresIn: '1h' });
     const refreshToken = app.jwt.sign({ userId: user.id, type: 'refresh' }, { expiresIn: '30d' });
+    track(user.id, 'auth_success', { new_user: isNewUser });
     return reply.send({ access_token: accessToken, refresh_token: refreshToken, user });
   });
 
@@ -77,6 +80,9 @@ export async function authRoutes(app: FastifyInstance) {
     const userId = (request.user as any).userId;
     const user = (await query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
     if (!user) return reply.code(404).send({ code: 'NOT_FOUND', message: 'User not found' });
+    // /auth/me is called on every cold start after token restore, so it's
+    // a reasonable proxy for app_open in a server-side analytics setup.
+    track(userId, 'app_open');
     return { user };
   });
 }
