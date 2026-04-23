@@ -73,14 +73,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateProfile: async (patch) => {
-    set({ error: null });
-    try {
-      const user = await usersApi.updateMe(patch);
-      set({ user });
-    } catch (e: any) {
-      set({ error: e?.message || 'Не удалось сохранить профиль' });
-      throw e;
-    }
+    // Intentionally does NOT touch the store-level `error` field — that's
+    // shared with the auth flow and would otherwise stick around after
+    // logout and show a stale "profile failed to save" message on AuthScreen.
+    // ProfileScreen owns its own local `profileError` state for this.
+    const user = await usersApi.updateMe(patch);
+    set({ user });
   },
 }));
 
