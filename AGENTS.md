@@ -64,7 +64,7 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 | `client.ts` | Base HTTP client, `camelize`, token management |
 | `auth.ts` | `POST /auth/otp/send`, `POST /auth/otp/verify`, `GET /auth/me` |
 | `events.ts` | `GET /events`, `POST/DELETE /events/:id/interest`, `POST/DELETE /events/:id/save` |
-| `plans.ts` | Full plan CRUD + proposals, votes, finalize/unfinalize, repeat, messages, invite participant |
+| `plans.ts` | Full plan CRUD + proposals, votes, finalize/unfinalize, repeat, messages, invite participant, share-link preview + join (`/plans/by-token/:token`) |
 | `invitations.ts` | `GET /invitations`, `PATCH /invitations/:id` (accept/decline) |
 | `notifications.ts` | `GET /notifications`, `PATCH /notifications/:id/read`, `PATCH /notifications/read-all` |
 | `search.ts` | `GET /search/events` |
@@ -103,13 +103,14 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 | File | Routes |
 |------|--------|
 | `auth.ts` | OTP mock (code `1111`), JWT |
-| `users.ts` | `/users/me`, `/users/friends` |
+| `users.ts` | `/users/me` (GET, PATCH), `/users/search`, `/users/friends`, `/users/friends/:id` (POST, PATCH, DELETE), `/users/:id` |
 | `events.ts` | Events + social proof (interested, saved, friends) |
 | `venues.ts` | Venues + events by venue |
-| `plans.ts` | Full plan CRUD, participants (GET/POST/PATCH/DELETE), proposals, votes, finalize/unfinalize, cancel/complete, repeat, messages |
+| `plans.ts` | Full plan CRUD, participants (GET/POST/PATCH/DELETE), proposals, votes, finalize/unfinalize, cancel/complete, repeat, messages, share-link preview/join (`GET /plans/by-token/:token`, `POST /plans/by-token/:token/join`) |
 | `invitations.ts` | List + PATCH (accept with atomic participant creation + 15-limit FOR UPDATE lock) |
 | `groups.ts` | List, get, invite-only member add |
 | `notifications.ts` | List + mark read |
+| `search.ts` | `GET /search/events` (text/date/category filters) |
 | `ws.ts` | WebSocket route: auth, subscribe/unsubscribe, heartbeat (ping/pong) |
 
 ## Product constraints
