@@ -1,4 +1,4 @@
-# Session Handoff — 2026-04-23 (demo-stack + CI)
+# Session Handoff — 2026-04-24 (post demo-stack + Phase-0)
 
 This document is the forward-looking handoff: **what is next, which
 branches/PRs are in flight, and the gotchas you will hit on a fresh clone**.
@@ -14,11 +14,10 @@ file (2026-04-22) is preserved in git history if you need the P1/P2 narrative.
 
 ## TL;DR
 
-- Roadmap up to P3 (observability) is merged. P4+ is pending and unblocked
-  by CI now existing.
-- **Open PR**: #1 — demo-stack fixes + `docs/DEMO_SETUP.md` + CI workflow +
-  Phase-0 documentation alignment (this document + `CURRENT_STATUS.md` +
-  README). Blocks nothing downstream; safe to merge as soon as CI is green.
+- Roadmap through P3 (observability) + Phase-0 (docs alignment + CI) are
+  all on master. P4+ is pending and unblocked by CI now existing.
+- **No open PRs.** The demo-stack fixes (PR #1) and Phase-0 cleanup (PR #2)
+  are both merged.
 - **Next recommended milestone**: P4 dark theme or P5 integration tests —
   user has not picked between them yet.
 
@@ -28,11 +27,10 @@ file (2026-04-22) is preserved in git history if you need the P1/P2 narrative.
 
 | Branch | Purpose | State |
 |--------|---------|-------|
-| `master` | Production trunk | P0a, P1, P2, P3 merged |
-| `devin/1776983620-demo-stack-fixes` | Demo-stack fixes + DEMO_SETUP + CI + Phase-0 docs (PR #1) | open, awaiting merge |
+| `master` | Production trunk | P0a, P1, P2, P3, demo-stack, Phase-0 merged |
 
-There are no other in-flight feature branches. Delete any leftover `devin/*`
-branches older than the active PR.
+There are no in-flight feature branches. Safe to delete any `devin/*` feature
+branches locally and remotely — master is the source of truth.
 
 ---
 
@@ -47,7 +45,7 @@ Order and reasoning are the user's own choices — don't reorder silently.
 | P1 | Plan share link + deep link | merged |
 | P2 | Onboarding + human empty states | merged |
 | P3 | Sentry + minimal PostHog analytics | merged |
-| Phase 0 | Docs cleanup + CI (this PR) | open in PR #1 |
+| Phase 0 | Docs cleanup + single-source-of-truth + minimal CI | merged (PR #1 demo-stack + PR #2 docs/CI) |
 | P4 | Dark theme (respecting Aurora) | pending |
 | P5 | Basic integration tests (friends-flow, plan lifecycle, invitations, WS) | pending — CI now ready to host them |
 | P6 | Mobile native check + EAS build (dev + preview) | pending |
@@ -56,12 +54,13 @@ Order and reasoning are the user's own choices — don't reorder silently.
 
 ---
 
-## 3. What was delivered in the current open PR (PR #1 — demo-stack)
+## 3. What was delivered in the demo-stack + Phase-0 pair (PR #1 + PR #2)
 
 Context: the user tested the app on a real iPhone 16 Pro Max (iOS 26.4) via
 Expo Go tunnel. The session surfaced several real bugs that blocked the
-end-to-end demo. PR #1 fixes them and adds the surrounding hygiene needed
-to prevent regression.
+end-to-end demo. PR #1 fixed them; PR #2 aligned the documentation with
+reality and added minimal CI so those fixes (and anything downstream) are
+protected by automated gates.
 
 ### Backend
 - `backend/src/routes/ws.ts`: UUID validation for `plan:{id}` subscribes +
@@ -197,19 +196,19 @@ deep link `fest://p/bcf69309791cf210`.
 
 ## 6. How to resume (concrete next steps for the next agent)
 
-1. Confirm PR #1 (<https://github.com/magtophard-ai/Plans/pull/1>) is merged
-   and CI on master is green.
-2. Check out a fresh master: `git fetch && git checkout master && git pull`.
-3. Pick a roadmap item. The two easiest unblocked candidates are:
+1. Check out a fresh master: `git fetch && git checkout master && git pull`.
+   CI on master is already running and green (see
+   <https://github.com/magtophard-ai/Plans/actions>).
+2. Pick a roadmap item. The two easiest unblocked candidates are:
    - **P4 dark theme** — UI-only, no schema/API work; constrained to the
      Aurora palette.
    - **P5 integration tests** — now cheap because CI already runs Postgres +
      migrate + seed. Extend `backend/src/tests/*-smoke.ts` with additional
      flows instead of inventing a new test framework.
-4. Run both typechecks (`cd backend && npx tsc --noEmit`,
+3. Run both typechecks (`cd backend && npx tsc --noEmit`,
    `cd fest-app && npx tsc --noEmit`) locally before opening a PR. The CI
    workflow will re-run the same commands plus the two smoke jobs.
-5. Open PRs against master — CI will block the merge if the smoke tests
+4. Open PRs against master — CI will block the merge if the smoke tests
    regress.
 
 ---
