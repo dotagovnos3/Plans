@@ -175,7 +175,7 @@ All four are now the merge gate.
 - Expo — default Metro `:8081`. For device testing use `npx expo start --tunnel --go`
   with `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_WS_BASE_URL` in the same
   shell **before** starting Metro.
-- OTP — code is always `1111` (`OTP_MOCK`), no real SMS provider (P0b deferred).
+- OTP — code is always `1111` (controlled by the `OTP_CODE` env var; see `backend/.env.example`). No real SMS provider (P0b deferred). `POST /auth/otp/send` returns an empty body `{}` on success (HTTP 200), not `{ok:true}`.
 
 Seed users for manual demo testing (from `backend/src/db/seed.ts`):
 
