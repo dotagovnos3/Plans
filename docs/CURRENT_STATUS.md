@@ -40,7 +40,7 @@ demo stack up for real-device testing, see [`docs/DEMO_SETUP.md`](./DEMO_SETUP.m
 | Invitations | Full API-backed (atomic accept with 15-participant `FOR UPDATE` lock) |
 | Groups | Full API-backed (list/detail/member reads) |
 | Notifications | Full API-backed, server-created only |
-| Friends | Full API-backed; pending → accepted flow with `friend_request` notifications |
+| Friends | Full API-backed; pending → accepted flow with `friend_request` (to addressee) and `friend_accepted` (to requester) notifications |
 | Plan share / deep link | Share token + public preview + authed join + `fest://p/:token` linking |
 | WebSocket | Real — push-only, REST is source of truth; UUID-validated subscribes; wrapped handler (does not crash on malformed subscribe) |
 | Onboarding | 3-slide flow before `AuthScreen`, persisted via AsyncStorage |

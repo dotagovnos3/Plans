@@ -122,7 +122,7 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 - **Max 15 participants per plan**
 - **Chat is inside PlanDetails only** — no standalone chat
 - **Pre-meet** = simple text fields, no voting
-- **11 notification types**: `plan_invite`, `group_invite`, `proposal_created`, `plan_finalized`, `plan_unfinalized`, `event_time_changed`, `event_cancelled`, `plan_reminder`, `plan_completed`, `friend_request`, `plan_join_via_link`
+- **12 notification types**: `plan_invite`, `group_invite`, `proposal_created`, `plan_finalized`, `plan_unfinalized`, `event_time_changed`, `event_cancelled`, `plan_reminder`, `plan_completed`, `friend_request`, `friend_accepted`, `plan_join_via_link`. The canonical list lives in `backend/src/db/notifications.ts` (`NOTIFICATION_TYPES`); enum migrations are derived from it.
 - **No client-side notification creation** — all notifications created server-side
 
 ## Web layout conventions
