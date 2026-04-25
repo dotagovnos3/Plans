@@ -25,9 +25,13 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   const { planId } = route.params;
   const plans = usePlansStore((s) => s.plans);
   const messages = usePlansStore((s) => s.messages);
+  const messagesHasMore = usePlansStore((s) => s.messagesHasMore);
+  const messagesLoadingMore = usePlansStore((s) => s.messagesLoadingMore);
   const planLoading = usePlansStore((s) => s.loading);
   const planError = usePlansStore((s) => s.error);
-  const { fetchPlan, apiUpdateParticipantStatus, apiRemoveParticipant, apiCancelPlan, apiCompletePlan, apiFinalize, apiUnfinalize, apiCreateProposal, apiVote, apiUnvote, apiRepeat, apiFetchMessages, apiSendMessage, apiInviteParticipant } = usePlansStore();
+  const operationErrors = usePlansStore((s) => s.operationErrors);
+  const clearAllOpErrors = usePlansStore((s) => s.clearAllOpErrors);
+  const { fetchPlan, apiUpdateParticipantStatus, apiRemoveParticipant, apiCancelPlan, apiCompletePlan, apiFinalize, apiUnfinalize, apiCreateProposal, apiVote, apiUnvote, apiRepeat, apiFetchMessages, apiFetchOlderMessages, apiSendMessage, apiInviteParticipant } = usePlansStore();
   const user = useAuthStore((s) => s.user);
   const friends = useFriendsStore((s) => s.friends);
   const friendsLoading = useFriendsStore((s) => s.loading);
@@ -46,8 +50,13 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   React.useEffect(() => {
     const ch = `plan:${planId}`;
     subscribe(ch);
-    return () => unsubscribe(ch);
-  }, [planId]);
+    return () => {
+      unsubscribe(ch);
+      // Drop any operation errors so re-entering the screen doesn't
+      // surface stale messages from the previous visit.
+      clearAllOpErrors();
+    };
+  }, [planId, clearAllOpErrors]);
 
   const plan = plans.find((p) => p.id === planId);
   if (!plan || !user) {
@@ -58,6 +67,23 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
   const isCreator = plan.creator_id === user.id;
   const myParticipation = plan.participants?.find((p) => p.user_id === user.id);
   const planMessages = messages[planId] || [];
+
+  // Surface the most recent details-tab op error in a single banner.
+  // Sending a message has its own banner inside ChatTab; everything else
+  // (votes, finalize, invite, cancel, etc.) shares this slot.
+  const detailsActionError =
+    operationErrors.finalize
+    ?? operationErrors.unfinalize
+    ?? operationErrors.cancel
+    ?? operationErrors.complete
+    ?? operationErrors.repeat
+    ?? operationErrors.createProposal
+    ?? operationErrors.vote
+    ?? operationErrors.unvote
+    ?? operationErrors.inviteParticipant
+    ?? operationErrors.removeParticipant
+    ?? operationErrors.participantStatus
+    ?? null;
 
   const handleSend = () => {
     if (!chatInput.trim() || sending) return;
@@ -146,6 +172,9 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
             ) : null}
           </View>
           {planError && <Text style={s.errorBanner}>{planError}</Text>}
+          {detailsActionError && tab === 'details' ? (
+            <Text style={s.errorBanner}>{detailsActionError}</Text>
+          ) : null}
         <FadeIn delay={60} direction="down" distance={14}>
           <View style={s.heroBlock}>
             <Text style={s.eyebrow}>{ACTIVITY_LABELS[plan.activity_type]}</Text>
@@ -163,7 +192,7 @@ export const PlanDetailsScreen = ({ route, navigation }: Props) => {
         {tab === 'details' ? (
           <DetailsTab plan={plan} isCreator={isCreator} myStatus={myParticipation?.status ?? 'invited'} onSetStatus={handleSetStatus} onVote={apiVote} onUnvote={apiUnvote} onFinalize={async (id, pId, tId) => { await apiFinalize(id, pId, tId); setConfettiTrigger(true); hapticSuccess(); }} onUnfinalize={apiUnfinalize} onCancel={apiCancelPlan} onComplete={apiCompletePlan} onAddProposal={apiCreateProposal} onRepeat={handleRepeat} repeating={repeating} onInvite={() => setShowInviteModal(true)} onRemove={isCreator ? handleRemoveParticipant : undefined} onLeave={!isCreator && myParticipation ? handleLeave : undefined} />
         ) : (
-          <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} sending={sending} planId={planId} onVote={apiVote} onUnvote={apiUnvote} userId={user.id} />
+          <ChatTab messages={planMessages} input={chatInput} setInput={setChatInput} onSend={handleSend} sending={sending} planId={planId} onVote={apiVote} onUnvote={apiUnvote} userId={user.id} sendError={operationErrors.sendMessage ?? null} onLoadOlder={() => apiFetchOlderMessages(planId)} loadingOlder={!!messagesLoadingMore[planId]} hasMoreOlder={messagesHasMore[planId] !== false} />
         )}
 
         <Confetti trigger={confettiTrigger} pieces={40} />
@@ -491,7 +520,7 @@ const ProposalCard = ({ proposal, userId, planId, onVote, onUnvote, isCreator, o
   );
 };
 
-const ChatTab = ({ messages: msgs, input, setInput, onSend, sending, planId, onVote, onUnvote, userId }: { messages: Message[]; input: string; setInput: (v: string) => void; onSend: () => void; sending: boolean; planId: string; onVote: (planId: string, proposalId: string) => Promise<void>; onUnvote: (planId: string, proposalId: string) => Promise<void>; userId: string }) => {
+const ChatTab = ({ messages: msgs, input, setInput, onSend, sending, planId, onVote, onUnvote, userId, sendError, onLoadOlder, loadingOlder, hasMoreOlder }: { messages: Message[]; input: string; setInput: (v: string) => void; onSend: () => void; sending: boolean; planId: string; onVote: (planId: string, proposalId: string) => Promise<void>; onUnvote: (planId: string, proposalId: string) => Promise<void>; userId: string; sendError: string | null; onLoadOlder: () => void; loadingOlder: boolean; hasMoreOlder: boolean }) => {
   const plans = usePlansStore((s) => s.plans);
   const plan = plans.find((p) => p.id === planId);
 
@@ -532,7 +561,8 @@ const ChatTab = ({ messages: msgs, input, setInput, onSend, sending, planId, onV
             <Text style={s.msgText}>{item.text}</Text>
           </View>
         );
-      }} contentContainerStyle={s.chatList} inverted ListEmptyComponent={<View style={{ flex: 1, transform: [{ scaleY: -1 }] }}><EmptyState text="Нет сообщений" /></View>} keyboardShouldPersistTaps="handled" />
+      }} contentContainerStyle={s.chatList} inverted ListEmptyComponent={<View style={{ flex: 1, transform: [{ scaleY: -1 }] }}><EmptyState text="Нет сообщений" /></View>} keyboardShouldPersistTaps="handled" onEndReachedThreshold={0.3} onEndReached={() => { if (hasMoreOlder) onLoadOlder(); }} ListFooterComponent={loadingOlder ? <View style={{ paddingVertical: 12, alignItems: 'center', transform: [{ scaleY: -1 }] }}><ActivityIndicator size="small" color={theme.colors.primary} /></View> : null} />
+      {sendError ? <Text style={s.errorBanner}>{sendError}</Text> : null}
       <View style={s.chatInputRow}>
         <TextInput style={s.chatInput} placeholder="Сообщение..." placeholderTextColor={theme.colors.textTertiary} value={input} onChangeText={setInput} returnKeyType="send" onSubmitEditing={onSend} />
         <TouchableOpacity style={[s.sendBtn, sending && s.btnDisabled]} onPress={onSend} disabled={sending}>

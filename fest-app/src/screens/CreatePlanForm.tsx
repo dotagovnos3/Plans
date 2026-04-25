@@ -48,8 +48,9 @@ const ACTIVITY_ICONS: Record<ActivityType, string> = {
 export const CreatePlanForm = ({ linkedEventId, linkedEventTitle, linkedEventVenue, linkedEventTime, onDone, preselectedGroupIds }: Props) => {
   const user = useAuthStore((s) => s.user);
   const apiCreatePlan = usePlansStore((s) => s.apiCreatePlan);
-  const planError = usePlansStore((s) => s.error);
-  const clearPlanError = usePlansStore((s) => s.clearError);
+  const planError = usePlansStore((s) => s.operationErrors.create ?? null);
+  const clearOpError = usePlansStore((s) => s.clearOpError);
+  const clearPlanError = React.useCallback(() => clearOpError('create'), [clearOpError]);
   const groups = useGroupsStore((s) => s.groups);
   const fetchGroups = useGroupsStore((s) => s.fetchGroups);
   const { friends: apiFriends, fetchFriends } = useFriendsStore();
