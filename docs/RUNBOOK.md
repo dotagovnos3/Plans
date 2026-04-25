@@ -106,6 +106,24 @@ Notes:
 10. **Profile**: View friends list, saved events, edit name
 11. **Notifications**: Bell icon → see plan invite + proposal notifications
 
+## Content Ops v1
+
+Backend-only operator flow:
+
+```powershell
+cd .\backend
+npm run ops:import -- --file path\to\event.json
+npm run ops:list -- --state imported
+npm run ops:publish -- --ingestion-id <id> --venue-id <venue-id>
+npm run ops:sync -- --file path\to\event.json
+npm run ops:cancel -- --event-id <id> --reason "..."
+```
+
+`ops:sync` only updates an already-published/linked event; new public rows are
+created only by explicit `ops:publish`. Venue resolution reuses exact
+name+address; if no `--venue-id` is supplied and no venue matches, v1 creates a
+venue with `lat=0/lng=0`, so pass `--venue-id` when coordinates matter.
+
 ## Demo accounts
 
 | Phone | Name | Username | Notes |

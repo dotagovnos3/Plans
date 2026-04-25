@@ -1,5 +1,6 @@
 import { pool, query } from '../db/pool.js';
 import { createHmac } from 'crypto';
+import { readFile, writeFile } from 'fs/promises';
 import {
   cancelEventById,
   importNormalizedEvent,
@@ -130,6 +131,75 @@ async function main() {
     duplicateBlocked = true;
   }
   assert(duplicateBlocked, 'Fingerprint duplicate requires explicit --force-link-event-id');
+
+  const syncOnly = eventPayload(`${seed}-sync-only`, '2030-05-03T18:00:00.000Z', `ops-${seed}-sync-only`);
+  const syncFile = `/home/ubuntu/content-ops-sync-${seed}.json`;
+  await writeFile(syncFile, JSON.stringify(syncOnly), 'utf8');
+  const syncImportedRaw = JSON.parse(await readFile(syncFile, 'utf8')) as unknown;
+  const syncImported = await importNormalizedEvent(syncImportedRaw);
+  let syncBlocked = false;
+  try {
+    await updateFromIngestion(syncImported.id);
+  } catch (error) {
+    syncBlocked = error instanceof Error && error.message.includes('not published yet');
+  }
+  const syncOnlyCount = (await query(
+    'SELECT COUNT(*)::int as c FROM events WHERE source_type = $1 AND source_event_key = $2',
+    [syncOnly.source_type, syncOnly.source_event_key]
+  )).rows[0].c;
+  assert(syncBlocked && syncOnlyCount === 0, 'Sync skips unpublished source key without creating an event');
+  const syncIngestion = (await query(
+    'SELECT id FROM event_ingestions WHERE source_type = $1 AND source_event_key = $2',
+    [syncOnly.source_type, syncOnly.source_event_key]
+  )).rows[0] as { id: string };
+  const syncPublished = await publishIngestion(syncIngestion.id);
+  assert(syncPublished.action === 'created', 'Explicit publish creates event after sync skip');
+
+  const legacyVenue = (await query(
+    `INSERT INTO venues (name, address, lat, lng, cover_image_url)
+     VALUES ($1, $2, 55.75, 37.61, $3)
+     RETURNING id`,
+    [`Legacy Venue ${seed}`, `Legacy Street ${seed}`, 'https://placehold.co/600x400']
+  )).rows[0] as { id: string };
+  const legacyStartsAt = '2030-05-04T18:00:00.000Z';
+  const legacyEvent = (await query(
+    `INSERT INTO events (venue_id, title, description, cover_image_url, starts_at, ends_at, category, tags, source_fingerprint)
+     VALUES ($1, $2, $3, $4, $5, $6, 'music', $7, NULL)
+     RETURNING id`,
+    [
+      legacyVenue.id,
+      `Legacy Duplicate ${seed}`,
+      'Legacy seeded event without source fingerprint',
+      'https://placehold.co/600x400',
+      legacyStartsAt,
+      '2030-05-04T20:00:00.000Z',
+      ['legacy'],
+    ]
+  )).rows[0] as { id: string };
+  const legacyDuplicatePayload = {
+    source_type: 'manual',
+    title: `Legacy Duplicate ${seed}`,
+    description: 'Normalized duplicate of legacy event',
+    starts_at: legacyStartsAt,
+    ends_at: '2030-05-04T20:00:00.000Z',
+    venue_name: `Legacy Venue ${seed}`,
+    address: `Legacy Street ${seed}`,
+    cover_image_url: 'https://placehold.co/600x400',
+    category: 'music',
+    tags: ['legacy'],
+  };
+  const legacyDuplicate = await importNormalizedEvent(legacyDuplicatePayload);
+  assert(
+    legacyDuplicate.state === 'duplicate' && legacyDuplicate.duplicate_of_event_id === legacyEvent.id,
+    'Legacy event without source_fingerprint is detected as duplicate'
+  );
+  let legacyDuplicateBlocked = false;
+  try {
+    await publishIngestion(legacyDuplicate.id);
+  } catch {
+    legacyDuplicateBlocked = true;
+  }
+  assert(legacyDuplicateBlocked, 'Legacy duplicate requires explicit --force-link-event-id');
 
   console.log('\n5. Update existing event + notifications');
   const planRes: any = await api('/plans', tokenA, 'POST', {

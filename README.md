@@ -95,6 +95,16 @@ docker — see `AGENTS.md` for `psql` and connection details.
 `fest-app/src/fest-animations/**` is intentionally excluded from the main
 frontend TypeScript gate.
 
+## Content Ops v1
+
+Internal real-event supply is CLI-only:
+`cd backend && npm run ops:import -- --file path/to/event.json`, then
+`ops:list`, `ops:publish`, `ops:sync`, and `ops:cancel`. `ops:sync` updates
+only already-published/linked events; new public events require explicit
+`ops:publish`. Venue auto-create is a v1 compromise: exact name+address is
+reused, otherwise a venue is created with `lat=0/lng=0`; pass `--venue-id` when
+coordinates matter.
+
 ## CI
 
 Every PR and every push to `master` runs four jobs in parallel

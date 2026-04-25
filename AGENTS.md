@@ -134,7 +134,9 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 - Internal real-event supply is CLI-first; no public admin UI or venue self-serve.
 - `npm run ops:import -- --file path/to/event.json` imports a manually normalized JSON payload into `event_ingestions`; `--source-url` is metadata only and does not fetch/parse.
 - Required JSON fields: `source_type`, `title`, `starts_at`, `ends_at`, `venue_name`, `address`, `cover_image_url`; optional: `source_url`, `source_event_key`, `description`, `external_url`, `category`, `tags`, `price_info`, `operator_note`.
-- Publish/update/cancel through `ops:publish`, `ops:update`, `ops:sync`, and `ops:cancel`; duplicate protection is exact source key first, fingerprint duplicate candidates require `--force-link-event-id`.
+- Publish/update/cancel through `ops:publish`, `ops:update`, `ops:sync`, and `ops:cancel`; `ops:sync` only updates already-published/linked events and never creates a public event.
+- Duplicate protection is exact source key first, then fingerprint, then legacy fallback on normalized event title + venue name/address + starts_at; duplicate candidates require `--force-link-event-id`.
+- Venue auto-create is a v1 compromise: exact name+address is reused; otherwise `ops:publish` creates a venue with `lat=0/lng=0`. Operators should pass `--venue-id` when coordinates matter.
 - Public lists (`GET /events`, `/search/events`, `/venues/:id/events`) show only `events.status='published'`; `GET /events/:id` can return cancelled events so linked plans/notifications do not 404.
 
 ## Product constraints

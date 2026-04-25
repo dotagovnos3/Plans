@@ -675,7 +675,8 @@ npm run ops:update -- --ingestion-id <id>
   updates the same event when the ingestion/source key is already linked
 
 npm run ops:sync -- --file path/to/event.json [--source-url https://...]
-  import + update in one operator command when source key already maps to an event
+  import + update in one operator command when source key already maps to a published event;
+  never creates a new public event without explicit ops:publish
 
 npm run ops:cancel -- --event-id <id> --reason "..."
   marks events.status='cancelled', keeps detail readable, emits event_cancelled
@@ -683,7 +684,17 @@ npm run ops:cancel -- --event-id <id> --reason "..."
 
 Duplicate protection is conservative: exact `(source_type, source_event_key)`
 updates an existing event; fingerprint matches without a source key create a
-`duplicate` ingestion and require `--force-link-event-id`. Time updates emit
+`duplicate` ingestion and require `--force-link-event-id`. If
+`events.source_fingerprint` is NULL for legacy/seed rows, duplicate detection
+falls back to normalized event title + venue name/address + `starts_at` without
+backfilling old rows.
+
+Venue resolution reuses an exact name+address match. If no venue exists and
+`--venue-id` was not provided, `ops:publish` creates a venue with `lat=0/lng=0`
+as a v1 compromise; operators should pre-create/pass `--venue-id` when
+coordinates matter.
+
+Time updates emit
 `event_time_changed` with `{ event_id, event_title, old_starts_at,
 new_starts_at }` to participants of plans linked to that event. Cancels emit
 `event_cancelled` with `{ event_id, event_title, cancellation_reason }`.

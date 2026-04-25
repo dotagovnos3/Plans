@@ -90,9 +90,17 @@ async function run() {
     const { raw } = await readNormalizedEventFile(file);
     const payload = sourceUrl ? { ...(raw as Record<string, unknown>), source_url: sourceUrl } : raw;
     const ingestion = await importNormalizedEvent(payload);
-    const result = ingestion.linked_event_id || ingestion.source_event_key
-      ? await updateFromIngestion(ingestion.id)
-      : { ingestion, skipped: 'not linked to an existing event' };
+    let result;
+    try {
+      result = await updateFromIngestion(ingestion.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('not published yet')) {
+        result = { ingestion, skipped: 'not published yet; run ops:publish' };
+      } else {
+        throw error;
+      }
+    }
     print(result);
     return;
   }

@@ -116,7 +116,9 @@ function normalizeCategory(value: unknown): string {
   return category;
 }
 
-function buildFingerprint(input: Omit<NormalizedEventInput, 'starts_at' | 'ends_at'> & { starts_at: string }): string {
+type FingerprintInput = Omit<NormalizedEventInput, 'starts_at' | 'ends_at'> & { starts_at: string };
+
+function buildFingerprint(input: FingerprintInput): string {
   const startsAt = new Date(input.starts_at).toISOString().slice(0, 16);
   return [
     normalizeText(input.title),
@@ -173,16 +175,41 @@ export async function readNormalizedEventFile(filePath: string) {
   return { raw: parsed, normalized };
 }
 
-async function findFingerprintDuplicate(fingerprint: string, ignoreEventId?: string | null) {
-  const params = ignoreEventId ? [fingerprint, ignoreEventId] : [fingerprint];
-  const extraWhere = ignoreEventId ? 'AND id <> $2' : '';
-  const row = (
+async function findFingerprintDuplicate(input: FingerprintInput, fingerprint: string, ignoreEventId?: string | null) {
+  const sourceParams = ignoreEventId ? [fingerprint, ignoreEventId] : [fingerprint];
+  const sourceExtraWhere = ignoreEventId ? 'AND id <> $2' : '';
+  const sourceRow = (
     await query(
-      `SELECT id FROM events WHERE source_fingerprint = $1 ${extraWhere} ORDER BY created_at DESC LIMIT 1`,
-      params
+      `SELECT id FROM events WHERE source_fingerprint = $1 ${sourceExtraWhere} ORDER BY created_at DESC LIMIT 1`,
+      sourceParams
     )
   ).rows[0] as { id: string } | undefined;
-  return row?.id ?? null;
+  if (sourceRow) return sourceRow.id;
+
+  const fallbackParams = [
+    normalizeText(input.title),
+    normalizeText(input.venue_name),
+    normalizeText(input.address),
+    input.starts_at,
+  ];
+  const fallbackExtraWhere = ignoreEventId ? 'AND e.id <> $5' : '';
+  if (ignoreEventId) fallbackParams.push(ignoreEventId);
+  const fallbackRow = (
+    await query(
+      `SELECT e.id
+       FROM events e
+       JOIN venues v ON v.id = e.venue_id
+       WHERE lower(regexp_replace(trim(e.title), '[[:space:]]+', ' ', 'g')) = $1
+         AND lower(regexp_replace(trim(v.name), '[[:space:]]+', ' ', 'g')) = $2
+         AND lower(regexp_replace(trim(v.address), '[[:space:]]+', ' ', 'g')) = $3
+         AND e.starts_at = $4::timestamptz
+         ${fallbackExtraWhere}
+       ORDER BY e.created_at DESC
+       LIMIT 1`,
+      fallbackParams
+    )
+  ).rows[0] as { id: string } | undefined;
+  return fallbackRow?.id ?? null;
 }
 
 function mapIngestionRow(row: Record<string, unknown>): EventIngestionRecord {
@@ -263,7 +290,7 @@ export async function importNormalizedEvent(rawPayload: unknown) {
     const existingRow = mapIngestionRow(existing);
     const duplicateOfEventId = existingRow.linked_event_id
       ? null
-      : await findFingerprintDuplicate(fingerprint, existingRow.duplicate_of_event_id);
+      : await findFingerprintDuplicate(normalized, fingerprint);
     const nextState: IngestionState = existingRow.linked_event_id
       ? existingRow.state === 'cancelled' ? 'cancelled' : 'published'
       : duplicateOfEventId ? 'duplicate' : 'imported';
@@ -316,7 +343,7 @@ export async function importNormalizedEvent(rawPayload: unknown) {
     return mapIngestionRow(updated);
   }
 
-  const duplicateOfEventId = await findFingerprintDuplicate(fingerprint);
+  const duplicateOfEventId = await findFingerprintDuplicate(normalized, fingerprint);
   const state: IngestionState = duplicateOfEventId ? 'duplicate' : 'imported';
   const inserted = (
     await query(
@@ -582,8 +609,21 @@ export async function publishIngestion(ingestionId: string, opts?: { venueId?: s
 
 export async function updateFromIngestion(ingestionId: string) {
   const ingestion = await getIngestionById(ingestionId);
-  if (!ingestion.linked_event_id && !ingestion.source_event_key) {
+  if (ingestion.linked_event_id) {
+    return publishIngestion(ingestionId);
+  }
+  if (!ingestion.source_event_key) {
     throw new Error('Update requires an ingestion linked to an event or a source_event_key');
+  }
+  const existingEvent = (await query(
+    `SELECT id
+     FROM events
+     WHERE source_type = $1 AND source_event_key = $2
+     LIMIT 1`,
+    [ingestion.source_type, ingestion.source_event_key]
+  )).rows[0] as { id: string } | undefined;
+  if (!existingEvent) {
+    throw new Error('Event is not published yet; run ops:publish first');
   }
   return publishIngestion(ingestionId);
 }
