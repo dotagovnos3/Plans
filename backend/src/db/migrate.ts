@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { pool } from './pool.js';
+import { NOTIFICATION_TYPES } from './notifications.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -112,13 +113,14 @@ async function migrate() {
     }
   }
 
-  // Additive enum value migrations (idempotent) — keep newest values at the bottom.
-  // Postgres supports ADD VALUE IF NOT EXISTS since 9.6. These run against both
-  // fresh and already-initialized databases.
-  const ENUM_ADDITIONS: Array<{ type: string; value: string }> = [
-    { type: 'notification_type', value: 'friend_request' },
-    { type: 'notification_type', value: 'plan_join_via_link' },
-  ];
+  // Additive enum value migrations (idempotent). Postgres supports
+  // ADD VALUE IF NOT EXISTS since 9.6. These run against both fresh and
+  // already-initialized databases. Notification-type values are derived
+  // from `NOTIFICATION_TYPES` so adding a new entry there can't silently
+  // skip the migration step.
+  const ENUM_ADDITIONS: Array<{ type: string; value: string }> = NOTIFICATION_TYPES.map(
+    value => ({ type: 'notification_type', value })
+  );
   for (const { type, value } of ENUM_ADDITIONS) {
     try {
       await pool.query(`ALTER TYPE ${type} ADD VALUE IF NOT EXISTS '${value}'`);
