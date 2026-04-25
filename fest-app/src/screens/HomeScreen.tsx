@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, FlatList, Text, StyleSheet, Platform, ScrollView, Image } from 'react-native';
+import { View, FlatList, Text, StyleSheet, Platform, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -36,11 +36,14 @@ export const HomeScreen = () => {
     savedIds,
     categoryFilter,
     loading,
+    loadingMore,
+    hasMore,
     error,
     toggleInterest,
     toggleSave,
     setCategoryFilter,
     fetchEvents,
+    fetchMoreEvents,
   } = useEventsStore();
   const navigation = useNavigation<NavType>();
   const unread = useNotificationsStore((s) => s.unreadCount);
@@ -210,6 +213,19 @@ export const HomeScreen = () => {
           }
           refreshing={loading && filtered.length > 0}
           onRefresh={fetchEvents}
+          onEndReachedThreshold={0.4}
+          onEndReached={() => {
+            if (!categoryFilter) fetchMoreEvents();
+          }}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={s.footerLoader}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              </View>
+            ) : !categoryFilter && !hasMore && filtered.length > 0 ? (
+              <Text style={s.footerEnd}>Это все события</Text>
+            ) : null
+          }
           ListEmptyComponent={
             loading ? (
               <View style={s.loaderSkeleton}>
@@ -217,6 +233,13 @@ export const HomeScreen = () => {
                   <View key={i} style={s.skeletonCard} />
                 ))}
               </View>
+            ) : error ? (
+              <EmptyState
+                icon="⚠️"
+                title="Не удалось загрузить события"
+                body={error}
+                cta={{ label: 'Повторить', onPress: fetchEvents }}
+              />
             ) : categoryFilter ? (
               <EmptyState
                 icon="🎯"
@@ -459,6 +482,13 @@ const s = StyleSheet.create({
     ...theme.typography.captionBold,
     fontWeight: '800',
     letterSpacing: 0.3,
+  },
+  footerLoader: { paddingVertical: theme.spacing.lg, alignItems: 'center' },
+  footerEnd: {
+    ...theme.typography.caption,
+    color: theme.colors.textTertiary,
+    textAlign: 'center',
+    paddingVertical: theme.spacing.lg,
   },
   loaderSkeleton: { gap: 14 },
   skeletonCard: {
