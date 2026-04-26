@@ -49,6 +49,8 @@ Database config uses:
 
 Spring Boot runs Flyway automatically from `src/main/resources/db/migration`. Dev seed parity SQL is available at `src/main/resources/db/seed/R__dev_seed.sql` and is executed by tests; do not run it against production.
 
+Current Flyway migrations are intended for a fresh Spring-managed database. Connecting this Spring app to an existing Fastify-managed database requires a separate baseline-on-migrate/manual baseline plan before enabling Flyway against that database.
+
 ## Schema rule
 
 Do not use Hibernate to generate database schema. `spring.jpa.hibernate.ddl-auto=none` is pinned in config; future DB work must mirror `contracts/mvp/db/001_init.sql` and idempotent migrations from `backend/src/db/migrate.ts`.
