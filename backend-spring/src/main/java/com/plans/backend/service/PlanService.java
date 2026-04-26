@@ -264,6 +264,176 @@ public class PlanService {
         return Map.of("already_joined", false, "plan", getPlanFull(planId));
     }
 
+
+    public Map<String, Object> listProposals(UUID userId, UUID planId, String type, String status) {
+        basePlanRequired(planId);
+        requireParticipant(userId, planId, "Only participants can view proposals");
+        validateProposalType(type);
+        validateProposalStatus(status);
+        return Map.of("proposals", proposals(planId, type, status));
+    }
+
+    @Transactional
+    public Map<String, Object> createProposal(UUID userId, UUID planId, Map<String, Object> body) {
+        String type = requiredString(body.get("type"), "type and value_text required").trim();
+        String valueText = requiredString(body.get("value_text"), "type and value_text required").trim();
+        if (!Set.of("place", "time").contains(type)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "type must be place or time");
+        }
+        Object valueLat = body.get("value_lat");
+        if (valueLat != null && !(valueLat instanceof Number)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "value_lat must be a number");
+        }
+        Object valueLng = body.get("value_lng");
+        if (valueLng != null && !(valueLng instanceof Number)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "value_lng must be a number");
+        }
+        String valueDatetime = validatedDate(body.get("value_datetime"), "value_datetime must be a valid date");
+
+        Map<String, Object> plan = basePlanRequired(planId);
+        if (!"active".equals(plan.get("lifecycle_state").toString())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATE", "Cannot propose in non-active plan");
+        }
+        requireParticipant(userId, planId, "Only participants can propose");
+
+        Map<String, Object> proposal = jdbc.sql(
+                """
+                INSERT INTO plan_proposals (plan_id, proposer_id, type, value_text, value_lat, value_lng, value_datetime)
+                VALUES (:planId, :proposerId, CAST(:type AS proposal_type), :valueText, :valueLat, :valueLng,
+                        CAST(:valueDatetime AS timestamptz))
+                RETURNING *
+                """
+            )
+            .param("planId", planId)
+            .param("proposerId", userId)
+            .param("type", type)
+            .param("valueText", valueText)
+            .param("valueLat", valueLat)
+            .param("valueLng", valueLng)
+            .param("valueDatetime", valueDatetime)
+            .query()
+            .listOfRows()
+            .stream()
+            .findFirst()
+            .map(row -> (Map<String, Object>) new LinkedHashMap<String, Object>(SqlRows.normalize(row)))
+            .orElseThrow();
+
+        if ("place".equals(type) && "undecided".equals(plan.get("place_status").toString())) {
+            jdbc.sql("UPDATE plans SET place_status = 'proposed', updated_at = now() WHERE id = :planId")
+                .param("planId", planId)
+                .update();
+        }
+        if ("time".equals(type) && "undecided".equals(plan.get("time_status").toString())) {
+            jdbc.sql("UPDATE plans SET time_status = 'proposed', updated_at = now() WHERE id = :planId")
+                .param("planId", planId)
+                .update();
+        }
+
+        jdbc.sql(
+                """
+                INSERT INTO messages (context_type, context_id, sender_id, text, type, reference_id)
+                VALUES ('plan', :planId, :senderId, '', 'proposal_card', :proposalId)
+                """
+            )
+            .param("planId", planId)
+            .param("senderId", userId)
+            .param("proposalId", UUID.fromString(proposal.get("id").toString()))
+            .update();
+
+        String proposerName = jdbc.sql("SELECT name FROM users WHERE id = :userId")
+            .param("userId", userId)
+            .query(String.class)
+            .optional()
+            .orElse(null);
+        List<UUID> participantIds = jdbc.sql(
+                "SELECT user_id FROM plan_participants WHERE plan_id = :planId AND user_id != :userId"
+            )
+            .param("planId", planId)
+            .param("userId", userId)
+            .query(UUID.class)
+            .list();
+        for (UUID participantId : participantIds) {
+            insertNotification(participantId, "proposal_created", proposalCreatedPayload(planId, proposerName, type));
+        }
+
+        proposal.put("votes", List.of());
+        return Map.of("proposal", proposal);
+    }
+
+    @Transactional
+    public Map<String, Object> vote(UUID userId, UUID planId, UUID proposalId) {
+        Map<String, Object> plan = basePlanRequired(planId);
+        if (!"active".equals(plan.get("lifecycle_state").toString())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATE", "Cannot vote in non-active plan");
+        }
+        Map<String, Object> proposal = proposalRequired(planId, proposalId);
+        if (!"active".equals(proposal.get("status").toString())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATE", "Cannot vote on non-active proposal");
+        }
+        requireParticipant(userId, planId, "Only participants can vote");
+
+        Map<String, Object> existing = findVote(proposalId, userId);
+        if (existing != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "ALREADY_VOTED", "Already voted on this proposal");
+        }
+
+        Number votesForType = jdbc.sql(
+                """
+                SELECT COUNT(*)
+                FROM votes v
+                JOIN plan_proposals pp ON v.proposal_id = pp.id
+                WHERE pp.plan_id = :planId
+                  AND pp.type = CAST(:type AS proposal_type)
+                  AND v.voter_id = :userId
+                  AND pp.status = 'active'
+                """
+            )
+            .param("planId", planId)
+            .param("type", proposal.get("type").toString())
+            .param("userId", userId)
+            .query(Number.class)
+            .single();
+        if (votesForType.intValue() >= 2) {
+            throw new ApiException(HttpStatus.CONFLICT, "MAX_VOTES_EXCEEDED", "Max 2 votes per proposal type");
+        }
+
+        Map<String, Object> vote = jdbc.sql(
+                "INSERT INTO votes (proposal_id, voter_id) VALUES (:proposalId, :userId) RETURNING *"
+            )
+            .param("proposalId", proposalId)
+            .param("userId", userId)
+            .query()
+            .listOfRows()
+            .stream()
+            .findFirst()
+            .map(SqlRows::normalize)
+            .orElseThrow();
+        return Map.of("vote", vote);
+    }
+
+    @Transactional
+    public void unvote(UUID userId, UUID planId, UUID proposalId) {
+        basePlanRequired(planId);
+        requireParticipant(userId, planId, "Only participants can vote");
+        int deleted = jdbc.sql(
+                """
+                DELETE FROM votes v
+                USING plan_proposals pp
+                WHERE v.proposal_id = pp.id
+                  AND pp.plan_id = :planId
+                  AND v.proposal_id = :proposalId
+                  AND v.voter_id = :userId
+                """
+            )
+            .param("planId", planId)
+            .param("proposalId", proposalId)
+            .param("userId", userId)
+            .update();
+        if (deleted == 0) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Vote not found");
+        }
+    }
+
     @Transactional
     public Map<String, Object> cancel(UUID userId, UUID planId) {
         Map<String, Object> plan = basePlanRequired(planId);
@@ -517,9 +687,26 @@ public class PlanService {
     }
 
     private List<Map<String, Object>> proposals(UUID planId) {
-        List<Map<String, Object>> proposals = jdbc.sql("SELECT * FROM plan_proposals WHERE plan_id = :planId")
-            .param("planId", planId)
-            .query()
+        return proposals(planId, null, null);
+    }
+
+    private List<Map<String, Object>> proposals(UUID planId, String type, String status) {
+        StringBuilder where = new StringBuilder("plan_id = :planId");
+        if (type != null) {
+            where.append(" AND type = CAST(:type AS proposal_type)");
+        }
+        if (status != null) {
+            where.append(" AND status = CAST(:status AS proposal_status)");
+        }
+        var statement = jdbc.sql("SELECT * FROM plan_proposals WHERE " + where + " ORDER BY created_at ASC")
+            .param("planId", planId);
+        if (type != null) {
+            statement = statement.param("type", type);
+        }
+        if (status != null) {
+            statement = statement.param("status", status);
+        }
+        List<Map<String, Object>> proposals = statement.query()
             .listOfRows()
             .stream()
             .map(row -> (Map<String, Object>) new LinkedHashMap<String, Object>(SqlRows.normalize(row)))
@@ -535,6 +722,67 @@ public class PlanService {
             proposal.put("votes", votes);
         }
         return proposals;
+    }
+
+
+    private Map<String, Object> proposalRequired(UUID planId, UUID proposalId) {
+        return jdbc.sql("SELECT * FROM plan_proposals WHERE id = :proposalId AND plan_id = :planId")
+            .param("proposalId", proposalId)
+            .param("planId", planId)
+            .query()
+            .listOfRows()
+            .stream()
+            .findFirst()
+            .map(SqlRows::normalize)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Proposal not found"));
+    }
+
+    private Map<String, Object> findVote(UUID proposalId, UUID userId) {
+        return jdbc.sql("SELECT * FROM votes WHERE proposal_id = :proposalId AND voter_id = :userId")
+            .param("proposalId", proposalId)
+            .param("userId", userId)
+            .query()
+            .listOfRows()
+            .stream()
+            .findFirst()
+            .map(SqlRows::normalize)
+            .orElse(null);
+    }
+
+    private void validateProposalType(String type) {
+        if (type != null && !Set.of("place", "time").contains(type)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "type must be place or time");
+        }
+    }
+
+    private void validateProposalStatus(String status) {
+        if (status != null && !Set.of("active", "finalized", "superseded").contains(status)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INPUT", "Invalid proposal status");
+        }
+    }
+
+    private void requireParticipant(UUID userId, UUID planId, String message) {
+        boolean participant = jdbc.sql(
+                "SELECT 1 FROM plan_participants WHERE plan_id = :planId AND user_id = :userId"
+            )
+            .param("planId", planId)
+            .param("userId", userId)
+            .query()
+            .listOfRows()
+            .stream()
+            .findFirst()
+            .isPresent();
+        if (!participant) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", message);
+        }
+    }
+
+    private Map<String, Object> proposalCreatedPayload(UUID planId, String proposerName, String proposalType) {
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("plan_id", planId.toString());
+        payload.put("proposer_name", proposerName);
+        payload.put("proposal_type", proposalType);
+        return payload;
     }
 
     private Map<String, Object> linkedEvent(Object linkedEventId) {

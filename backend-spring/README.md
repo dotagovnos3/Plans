@@ -15,13 +15,17 @@ Fastify remains canonical until full Spring parity and switchover are complete.
 - Auth + read-only discovery.
 - User/friend/event write.
 - Plans + invitations + notifications.
+- Proposals + voting:
+  - `GET /api/plans/:planId/proposals`
+  - `POST /api/plans/:planId/proposals`
+  - `POST /api/plans/:planId/proposals/:proposalId/vote`
+  - `DELETE /api/plans/:planId/proposals/:proposalId/vote`
 - Share-link endpoints:
   - `GET /api/plans/by-token/:token`
   - `POST /api/plans/by-token/:token/join`
 
 ## Not yet covered
 
-- Proposals + voting.
 - Finalize/unfinalize + repeat.
 - Plan messages.
 - Realtime WebSocket behavior.
