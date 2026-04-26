@@ -61,6 +61,46 @@ public class PlanController {
         return planService.getPlan(id);
     }
 
+    @GetMapping("/{planId}/proposals")
+    Map<String, Object> proposals(
+        AuthenticatedUser authenticatedUser,
+        @PathVariable UUID planId,
+        @RequestParam(required = false) String type,
+        @RequestParam(required = false) String status
+    ) {
+        return planService.listProposals(authenticatedUser.id(), planId, type, status);
+    }
+
+    @PostMapping("/{planId}/proposals")
+    ResponseEntity<Map<String, Object>> createProposal(
+        AuthenticatedUser authenticatedUser,
+        @PathVariable UUID planId,
+        @RequestBody(required = false) Map<String, Object> body
+    ) {
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(planService.createProposal(authenticatedUser.id(), planId, body == null ? Map.of() : body));
+    }
+
+    @PostMapping("/{planId}/proposals/{proposalId}/vote")
+    Map<String, Object> vote(
+        AuthenticatedUser authenticatedUser,
+        @PathVariable UUID planId,
+        @PathVariable UUID proposalId
+    ) {
+        return planService.vote(authenticatedUser.id(), planId, proposalId);
+    }
+
+    @DeleteMapping("/{planId}/proposals/{proposalId}/vote")
+    ResponseEntity<Void> unvote(
+        AuthenticatedUser authenticatedUser,
+        @PathVariable UUID planId,
+        @PathVariable UUID proposalId
+    ) {
+        planService.unvote(authenticatedUser.id(), planId, proposalId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/cancel")
     Map<String, Object> cancel(AuthenticatedUser authenticatedUser, @PathVariable UUID id) {
         return planService.cancel(authenticatedUser.id(), id);

@@ -497,6 +497,162 @@ class PlansInvitationsNotificationsParityIntegrationTest {
         expectCount("SELECT COUNT(*) FROM notifications WHERE user_id = ?::uuid AND read = false", userId, 0);
     }
 
+
+
+    @Test
+    void proposalsAndVotingMatchFastifyParityRules() throws Exception {
+        String creatorToken = login("+79990000000");
+        String participantToken = login("+79991111111");
+        String participantId = userId("+79991111111");
+        String nonParticipantToken = login("+79995555555");
+        String planId = createPlan(creatorToken, "Proposal parity", participantId);
+
+        mockMvc.perform(get("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.proposals", hasSize(0)));
+
+        String placeResponse = mockMvc.perform(post("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(creatorToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "type":"place",
+                      "value_text":"Бар Центральный",
+                      "value_lat":55.75,
+                      "value_lng":37.61
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.proposal.type").value("place"))
+            .andExpect(jsonPath("$.proposal.value_text").value("Бар Центральный"))
+            .andExpect(jsonPath("$.proposal.votes", hasSize(0)))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String placeProposalId = read(placeResponse, "/proposal/id").asText();
+
+        String timeResponse = mockMvc.perform(post("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(creatorToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "type":"time",
+                      "value_text":"20:00",
+                      "value_datetime":"2026-05-01T20:00:00+03:00"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.proposal.type").value("time"))
+            .andExpect(jsonPath("$.proposal.value_text").value("20:00"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String timeProposalId = read(timeResponse, "/proposal/id").asText();
+
+        mockMvc.perform(get("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(nonParticipantToken)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(nonParticipantToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"place\",\"value_text\":\"Nope\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.message").value("Only participants can propose"));
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + placeProposalId + "/vote")
+                .header("Authorization", bearer(nonParticipantToken)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.message").value("Only participants can vote"));
+
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + placeProposalId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.vote.proposal_id").value(placeProposalId))
+            .andExpect(jsonPath("$.vote.voter_id").value(participantId));
+
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + placeProposalId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.vote.proposal_id").value(placeProposalId));
+        expectCount(
+            "SELECT COUNT(*) FROM votes WHERE proposal_id = ?::uuid AND voter_id = ?::uuid",
+            placeProposalId,
+            participantId,
+            1
+        );
+
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + timeProposalId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isOk());
+
+        String secondPlaceId = createProposal(creatorToken, planId, "place", "Бар второй");
+        String thirdPlaceId = createProposal(creatorToken, planId, "place", "Бар третий");
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + secondPlaceId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + thirdPlaceId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("MAX_VOTES_EXCEEDED"))
+            .andExpect(jsonPath("$.message").value("Max 2 votes per proposal type"));
+
+        mockMvc.perform(delete("/api/plans/" + planId + "/proposals/" + placeProposalId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isNoContent());
+        expectCount(
+            "SELECT COUNT(*) FROM votes WHERE proposal_id = ?::uuid AND voter_id = ?::uuid",
+            placeProposalId,
+            participantId,
+            0
+        );
+    }
+
+    @Test
+    void finalizedAndMissingProposalCasesMatchFastifyErrorShape() throws Exception {
+        String creatorToken = login("+79990000000");
+        String participantToken = login("+79991111111");
+        String participantId = userId("+79991111111");
+        String planId = createPlan(creatorToken, "Finalized proposals", participantId);
+        String proposalId = createProposal(creatorToken, planId, "place", "До финала");
+        setPlanLifecycleById(planId, "finalized");
+
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(creatorToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"place\",\"value_text\":\"Поздно\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+            .andExpect(jsonPath("$.message").value("Cannot propose in non-active plan"));
+
+        mockMvc.perform(post("/api/plans/" + planId + "/proposals/" + proposalId + "/vote")
+                .header("Authorization", bearer(participantToken)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+            .andExpect(jsonPath("$.message").value("Cannot vote in non-active plan"));
+
+        String missingPlan = UUID.randomUUID().toString();
+        mockMvc.perform(get("/api/plans/" + missingPlan + "/proposals")
+                .header("Authorization", bearer(creatorToken)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Plan not found"));
+
+        String activePlanId = createPlan(creatorToken, "Missing proposals", participantId);
+        String missingProposal = UUID.randomUUID().toString();
+        mockMvc.perform(post("/api/plans/" + activePlanId + "/proposals/" + missingProposal + "/vote")
+                .header("Authorization", bearer(creatorToken)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Proposal not found"));
+
+        mockMvc.perform(delete("/api/plans/" + activePlanId + "/proposals/" + missingProposal + "/vote")
+                .header("Authorization", bearer(creatorToken)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Vote not found"));
+    }
+
     @Test
     void unauthorizedNotFoundAndErrorEnvelopesMatchFastify() throws Exception {
         String token = login("+79990000000");
@@ -562,6 +718,39 @@ class PlansInvitationsNotificationsParityIntegrationTest {
         return id;
     }
 
+
+
+    private String createPlan(String token, String title, String participantId) throws Exception {
+        String response = mockMvc.perform(post("/api/plans")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"" + title + "\",\"activity_type\":\"coffee\",\"participant_ids\":[\"" + participantId + "\"]}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return read(response, "/plan/id").asText();
+    }
+
+    private String createProposal(String token, String planId, String type, String valueText) throws Exception {
+        String response = mockMvc.perform(post("/api/plans/" + planId + "/proposals")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"" + type + "\",\"value_text\":\"" + valueText + "\"}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        return read(response, "/proposal/id").asText();
+    }
+
+    private void setPlanLifecycleById(String planId, String lifecycle) {
+        jdbc.update(
+            "UPDATE plans SET lifecycle_state = ?::plan_lifecycle WHERE id = ?::uuid",
+            lifecycle,
+            planId
+        );
+    }
     private String createPlanShareToken(String token, String title, String... extraFields) throws Exception {
         StringBuilder body = new StringBuilder("{\"title\":\"").append(title).append('"');
         for (String field : extraFields) {
