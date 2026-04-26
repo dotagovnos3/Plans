@@ -2,6 +2,7 @@ package com.plans.backend.api.parity;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -998,6 +999,17 @@ class PlansInvitationsNotificationsParityIntegrationTest {
         String participantId = userId("+79991111111");
         String planId = createPlan(creatorToken, "Message errors", participantId);
         String missingPlanId = UUID.randomUUID().toString();
+        String offContextId = UUID.randomUUID().toString();
+        jdbc.update("ALTER TYPE message_context ADD VALUE IF NOT EXISTS 'test_other'");
+        jdbc.update(
+            """
+            INSERT INTO messages (id, context_type, context_id, sender_id, text, type, client_message_id)
+            VALUES (?::uuid, 'test_other'::message_context, ?::uuid, ?::uuid, 'off-context', 'user', 'dedup-1')
+            """,
+            offContextId,
+            planId,
+            participantId
+        );
 
         mockMvc.perform(get("/api/plans/" + missingPlanId + "/messages")
                 .header("Authorization", bearer(creatorToken)))
@@ -1039,6 +1051,8 @@ class PlansInvitationsNotificationsParityIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"text\":\"first\",\"client_message_id\":\"dedup-1\"}"))
             .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.message.id").value(not(offContextId)))
+            .andExpect(jsonPath("$.message.text").value("first"))
             .andReturn()
             .getResponse()
             .getContentAsString();
@@ -1051,11 +1065,36 @@ class PlansInvitationsNotificationsParityIntegrationTest {
             .andExpect(jsonPath("$.message.id").value(firstId))
             .andExpect(jsonPath("$.message.text").value("first"));
         expectCount(
-            "SELECT COUNT(*) FROM messages WHERE context_id = ?::uuid AND sender_id = ?::uuid AND client_message_id = 'dedup-1'",
+            """
+            SELECT COUNT(*)
+            FROM messages
+            WHERE context_id = ?::uuid
+              AND sender_id = ?::uuid
+              AND context_type = 'plan'
+              AND client_message_id = 'dedup-1'
+            """,
             planId,
             participantId,
             1
         );
+        expectCount(
+            """
+            SELECT COUNT(*)
+            FROM messages
+            WHERE context_id = ?::uuid
+              AND sender_id = ?::uuid
+              AND client_message_id = 'dedup-1'
+            """,
+            planId,
+            participantId,
+            2
+        );
+        mockMvc.perform(get("/api/plans/" + planId + "/messages")
+                .header("Authorization", bearer(creatorToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.messages", hasSize(1)))
+            .andExpect(jsonPath("$.messages[0].id").value(firstId))
+            .andExpect(jsonPath("$.messages[0].text").value("first"));
     }
 
     @Test

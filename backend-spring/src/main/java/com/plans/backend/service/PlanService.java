@@ -447,6 +447,7 @@ public class PlanService {
                 FROM messages m
                 JOIN users u ON m.sender_id = u.id
                 WHERE m.context_id = :planId
+                  AND m.context_type = 'plan'
                 %s
                 ORDER BY m.created_at DESC
                 LIMIT :limit
@@ -1129,6 +1130,7 @@ public class PlanService {
                 FROM messages m
                 JOIN users u ON m.sender_id = u.id
                 WHERE m.context_id = :planId
+                  AND m.context_type = 'plan'
                   AND m.sender_id = :senderId
                   AND m.client_message_id = :clientMessageId
                 ORDER BY m.created_at ASC
