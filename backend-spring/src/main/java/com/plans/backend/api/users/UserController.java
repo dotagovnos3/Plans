@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -59,25 +60,29 @@ public class UserController {
             throw new ApiException(HttpStatus.CONFLICT, "USERNAME_TAKEN", "Username already taken");
         }
 
-        Map<String, Object> user = jdbc.sql(
-                """
-                UPDATE users
-                SET name = :name, username = :username, avatar_url = :avatarUrl
-                WHERE id = :userId
-                RETURNING *
-                """
-            )
-            .param("name", name)
-            .param("username", username)
-            .param("avatarUrl", avatarUrl)
-            .param("userId", authenticatedUser.id())
-            .query()
-            .listOfRows()
-            .stream()
-            .findFirst()
-            .map(SqlRows::normalize)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "User not found"));
-        return Map.of("user", user);
+        try {
+            Map<String, Object> user = jdbc.sql(
+                    """
+                    UPDATE users
+                    SET name = :name, username = :username, avatar_url = :avatarUrl
+                    WHERE id = :userId
+                    RETURNING *
+                    """
+                )
+                .param("name", name)
+                .param("username", username)
+                .param("avatarUrl", avatarUrl)
+                .param("userId", authenticatedUser.id())
+                .query()
+                .listOfRows()
+                .stream()
+                .findFirst()
+                .map(SqlRows::normalize)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "User not found"));
+            return Map.of("user", user);
+        } catch (DuplicateKeyException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "USERNAME_TAKEN", "Username already taken");
+        }
     }
 
     @GetMapping("/friends")
