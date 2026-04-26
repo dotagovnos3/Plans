@@ -38,11 +38,11 @@ commands with `$env:npm_config_cache="E:\npm-cache";` as described in
 | Start backend | `npm run start` (workdir: `backend/`) |
 | REST smoke | `npx tsx src/tests/e2e-smoke.ts` (workdir: `backend/`; backend must be running) |
 | Realtime smoke | `npx tsx src/tests/rt2-smoke.ts` (workdir: `backend/`; backend must be running) |
-| Content ops smoke | `npx tsx src/tests/content-ops-smoke.ts` (workdir: `backend/`; backend must be running) |
 | Content ops import | `npm run ops:import -- --file path/to/event.json` (workdir: `backend/`) |
 | Content ops publish | `npm run ops:publish -- --ingestion-id <id> [--venue-id <id>] [--force-link-event-id <id>]` (workdir: `backend/`) |
 | Content ops update | `npm run ops:update -- --ingestion-id <id>` (workdir: `backend/`) |
 | Content ops cancel | `npm run ops:cancel -- --event-id <id> --reason "..."` (workdir: `backend/`) |
+| Content ops smoke | `npx tsx src/tests/content-ops-smoke.ts` (workdir: `backend/`; backend must be running) |
 
 No `npm test` script exists. No linter is configured — use `tsc --noEmit` as the verification gate. Always run it after code changes.
 
@@ -138,6 +138,7 @@ Expo + React Native + TypeScript frontend backed by Fastify + PostgreSQL API. Ba
 - Duplicate protection is exact source key first, then fingerprint, then legacy fallback on normalized event title + venue name/address + starts_at; duplicate candidates require `--force-link-event-id`.
 - Venue auto-create is a v1 compromise: exact name+address is reused; otherwise `ops:publish` creates a venue with `lat=0/lng=0`. Operators should pass `--venue-id` when coordinates matter.
 - Public lists (`GET /events`, `/search/events`, `/venues/:id/events`) show only `events.status='published'`; `GET /events/:id` can return cancelled events so linked plans/notifications do not 404.
+- Safe synthetic payload example: `docs/examples/content-ops-event.example.json`.
 
 ## Product constraints
 

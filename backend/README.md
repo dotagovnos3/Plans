@@ -1,9 +1,9 @@
-# Планы? Backend — Slice 1
+# Планы? Backend
 
 ## Prerequisites
 
-- Node.js 18+
-- PostgreSQL 15+ running locally with a `plans` database
+- Node.js 22.x
+- PostgreSQL 17 running locally with a `plans` database
 
 ## Setup
 
@@ -44,6 +44,30 @@ npm start
 
 Server starts at `http://localhost:3001`. Health check: `GET /api/health`.
 
+## Content Ops v1
+
+Internal real-event supply is CLI-only and consumes manually normalized JSON.
+`source_url` is metadata only; the backend does not fetch or parse arbitrary
+URLs.
+
+```bash
+# Example payload:
+# ../docs/examples/content-ops-event.example.json
+
+npm run ops:import -- --file ../docs/examples/content-ops-event.example.json
+npm run ops:list -- --state imported
+npm run ops:publish -- --ingestion-id <id> [--venue-id <id>] [--force-link-event-id <id>]
+npm run ops:sync -- --file ../docs/examples/content-ops-event.example.json
+npm run ops:update -- --ingestion-id <id>
+npm run ops:cancel -- --event-id <id> --reason "..."
+npm run ops:content -- <command>
+```
+
+`ops:sync` updates only already-published/linked events and never creates a
+public event before explicit `ops:publish`. Duplicate candidates require
+operator confirmation via `--force-link-event-id`. If no `--venue-id` is passed,
+publish reuses exact venue name+address or may create `lat=0/lng=0`.
+
 ## Authentication
 
 All endpoints except `/api/auth/otp/send` and `/api/auth/otp/verify` require a Bearer JWT.
@@ -62,7 +86,7 @@ export TOKEN=<access_token>
 curl http://localhost:3001/api/events -H "Authorization: Bearer $TOKEN"
 ```
 
-## Slice 1 Endpoints
+## Main endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -109,4 +133,15 @@ curl http://localhost:3001/api/events -H "Authorization: Bearer $TOKEN"
 
 ```bash
 npm run typecheck
+```
+
+## Smoke tests
+
+Run with the backend already listening on `:3001` and
+`DATABASE_URL=postgres://postgres:postgres@localhost:5432/plans`:
+
+```bash
+npx tsx src/tests/content-ops-smoke.ts
+npx tsx src/tests/e2e-smoke.ts
+npx tsx src/tests/rt2-smoke.ts
 ```

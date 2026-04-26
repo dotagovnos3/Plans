@@ -13,7 +13,7 @@ Expo + Fastify + PostgreSQL MVP of the "Планы?" / FEST app.
   → Expo tunnel → QR).
 - [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) — original Windows runbook.
 - [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) — CI gate
-  (typecheck + backend smoke + realtime smoke).
+  (backend/frontend typecheck + backend REST/realtime/content-ops smoke).
 
 ## Repo layout
 
@@ -34,7 +34,7 @@ docker run -d --name fest-pg \
 
 # Backend
 cd backend
-npm install
+npm install --legacy-peer-deps
 echo 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/plans' > .env
 echo 'JWT_SECRET=dev-secret-change-in-prod' >> .env
 echo 'OTP_CODE=1111' >> .env
@@ -103,11 +103,13 @@ Internal real-event supply is CLI-only:
 only already-published/linked events; new public events require explicit
 `ops:publish`. Venue auto-create is a v1 compromise: exact name+address is
 reused, otherwise a venue is created with `lat=0/lng=0`; pass `--venue-id` when
-coordinates matter.
+coordinates matter. See
+[`docs/HANDOFF.md`](./docs/HANDOFF.md#content-ops-commands) and
+[`docs/examples/content-ops-event.example.json`](./docs/examples/content-ops-event.example.json).
 
 ## CI
 
-Every PR and every push to `master` runs four jobs in parallel
+Every PR and every push to `master` runs five jobs in parallel
 ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)):
 
 - `backend typecheck`
@@ -116,7 +118,7 @@ Every PR and every push to `master` runs four jobs in parallel
 - `backend realtime smoke` — same setup, `rt2-smoke.ts`
 - `backend content ops smoke` — same setup, `content-ops-smoke.ts`
 
-All four must be green to merge.
+All five must be green to merge.
 
 ## Phone testing via Expo Go
 

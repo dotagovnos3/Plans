@@ -662,6 +662,9 @@ GET /venues/:id/events
 CLI-only v1; no OpenAPI endpoints.
 
 ```
+npm run ops:content -- <import|list|show|publish|update|sync|cancel>
+  shared entrypoint behind the convenience scripts below
+
 npm run ops:import -- --file path/to/event.json [--source-url https://...]
   imports manually normalized JSON into event_ingestions
 
@@ -681,6 +684,9 @@ npm run ops:sync -- --file path/to/event.json [--source-url https://...]
 npm run ops:cancel -- --event-id <id> --reason "..."
   marks events.status='cancelled', keeps detail readable, emits event_cancelled
 ```
+
+Example normalized payload:
+[`docs/examples/content-ops-event.example.json`](./examples/content-ops-event.example.json).
 
 Duplicate protection is conservative: exact `(source_type, source_event_key)`
 updates an existing event; fingerprint matches without a source key create a

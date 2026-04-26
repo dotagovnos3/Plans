@@ -1,0 +1,16 @@
+{
+  "source_type": "manual",
+  "source_url": "https://example.test/events/synthetic-spring-concert",
+  "source_event_key": "synthetic-spring-concert-2030-05-18",
+  "title": "Synthetic Spring Concert",
+  "description": "Synthetic example for Content Ops v1 documentation. Not a real event.",
+  "starts_at": "2030-05-18T18:00:00.000Z",
+  "ends_at": "2030-05-18T20:00:00.000Z",
+  "venue_name": "Example Hall",
+  "address": "Example Street 1, Example City",
+  "cover_image_url": "https://placehold.co/1200x800?text=Example+Event",
+  "external_url": "https://example.test/tickets/synthetic-spring-concert",
+  "category": "music",
+  "tags": ["synthetic", "example"],
+  "price_info": "Synthetic tickets from 0 ₽"
+}
