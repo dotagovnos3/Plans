@@ -19,6 +19,9 @@ real-device testing, see [`docs/DEMO_SETUP.md`](./DEMO_SETUP.md).
 - CI (GitHub Actions) gates every PR on backend + frontend typecheck, backend
   REST/HTTP smoke, realtime (WebSocket) smoke, and content-ops smoke. See
   [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+- Content Ops v1 is shipped as an internal CLI-only workflow for normalized
+  JSON import/publish/update/cancel; see
+  [`docs/HANDOFF.md`](./HANDOFF.md#content-ops-commands).
 
 ## Implementation status
 
@@ -80,7 +83,7 @@ documented path for real-device testing.
 
 Quick local (web) start:
 1. Postgres — `docker run -d --name fest-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=plans postgres:17` (or Windows PG service — see [AGENTS.md](../AGENTS.md)).
-2. Backend — `cd backend && npm install && npm run db:migrate && npm run db:seed && npm run start`.
+2. Backend — `cd backend && npm install --legacy-peer-deps && npm run db:migrate && npm run db:seed && npm run start`.
 3. Frontend — `cd fest-app && npm install --legacy-peer-deps && npx expo start --web`.
 4. Auth — phone `+79990000000`, code `1111`.
 
@@ -91,7 +94,10 @@ Quick local (web) start:
 - No map view.
 - No email auth.
 - No group chat — chat is plan-level only.
-- No user-facing event creation form. Internal content ops is CLI-only from normalized JSON; no parser bots or public admin UI.
+- No user-facing event creation form. Internal content ops is CLI-only from normalized JSON; no parser bots, public admin UI, or venue self-serve.
+- Content ops remains manual/operator-only; venues created without `--venue-id`
+  may have `lat/lng=0`.
+- No fuzzy auto-merge without explicit operator confirmation.
 - Max 15 participants per plan.
 - `fest-app/src/fest-animations/**` intentionally excluded from the main
   frontend TypeScript gate (`fest-app/tsconfig.json`). Validate separately

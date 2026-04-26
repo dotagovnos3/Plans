@@ -18,3 +18,6 @@ TestDesign/
 /test-plan-*.md
 /test-evidence/
 /test-report.md
+/test-output/
+/content-ops-*.json
+/content-ops-output/

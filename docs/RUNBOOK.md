@@ -114,15 +114,19 @@ Backend-only operator flow:
 cd .\backend
 npm run ops:import -- --file path\to\event.json
 npm run ops:list -- --state imported
-npm run ops:publish -- --ingestion-id <id> --venue-id <venue-id>
+npm run ops:content -- show --ingestion-id <id>
+npm run ops:publish -- --ingestion-id <id> [--venue-id <venue-id>]
 npm run ops:sync -- --file path\to\event.json
+npm run ops:update -- --ingestion-id <id>
 npm run ops:cancel -- --event-id <id> --reason "..."
+npm run ops:content -- <import|list|show|publish|update|sync|cancel>
 ```
 
 `ops:sync` only updates an already-published/linked event; new public rows are
 created only by explicit `ops:publish`. Venue resolution reuses exact
 name+address; if no `--venue-id` is supplied and no venue matches, v1 creates a
-venue with `lat=0/lng=0`, so pass `--venue-id` when coordinates matter.
+venue with `lat=0/lng=0`, so pass `--venue-id` when coordinates matter. Safe
+synthetic payload example: `docs/examples/content-ops-event.example.json`.
 
 ## Demo accounts
 
@@ -141,8 +145,9 @@ All accounts use OTP code `1111`.
 
 - **No real SMS** — OTP is always `1111`, no SMS is sent
 - **No real user registration** — seed creates 6 users; new phones get auto-registered via OTP
-- **No event creation** — events are seed-only, no user-facing form
-- **Internal content ops only** — real events can be imported/published via backend CLI from normalized JSON; no parser bots or public admin UI
+- **No user-facing event creation** — public users cannot create events
+- **Internal content ops only** — real events can be imported/published via backend CLI from normalized JSON; no parser bots, public admin UI, or venue self-serve
+- **Content ops auto-created venues may have `lat/lng=0`** — pass `--venue-id` when coordinates matter
 - **No push notifications** — only in-app notifications + WS real-time
 - **No map** — locations are text + coordinates only
 - **No email auth** — phone-only

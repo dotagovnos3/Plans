@@ -11,7 +11,125 @@ down the file; the top section is the most recent checkpoint.
 
 ---
 
-## Checkpoint — 2026-04-25
+## Checkpoint — after Content Ops v1
+
+Content Ops / Real Events Pipeline v1 is implemented and merged into
+`master`. This is a repo checkpoint, not a new feature scope: the next agent
+should treat CLI-only content ops as shipped infrastructure and should avoid
+starting parser bots, admin UI, or venue self-serve before an operator trial.
+
+### Current state
+
+- **Core planning / beta hardening is complete**: the 4-slice MVP is
+  API-backed, realtime is push-only via WS, per-operation errors,
+  offline/reconnect UX, pagination, observability, and CI gates are shipped.
+- **Content Ops v1 exists**: internal operators can import normalized JSON into
+  `event_ingestions`, publish to `events`, update already-published events, and
+  cancel events.
+- **Public app remains mobile-first and plan-centric**: discovery feeds lead
+  into event details and plan creation; there is no user-facing event creation,
+  admin UI, or venue self-serve.
+- **Public feed filtering**: `/api/events`, `/api/search/events`, and
+  `/api/venues/:id/events` only return `events.status='published'`.
+- **Cancelled event behavior**: cancelled events are hidden from feed/search/
+  venue lists, but `GET /api/events/:id` and linked-plan event payloads remain
+  readable so notifications and existing plans do not turn into 404s.
+
+### Content Ops v1 summary
+
+- CLI-only; no frontend/admin UI and no internal HTTP endpoints.
+- Input is manually prepared normalized JSON. `source_url` is metadata only:
+  no backend fetch, scrape, parse, Telegram/VK/Instagram bot, or arbitrary URL
+  processing exists in v1.
+- `event_ingestions` stores the internal operator queue and raw normalized
+  payload; `events` only receives rows after explicit publish.
+- Duplicate handling is conservative:
+  - exact `(source_type, source_event_key)` updates the same public event;
+  - fingerprint matches without a source key become `duplicate` candidates;
+  - legacy/seed events without `source_fingerprint` are checked by normalized
+    title + venue name/address + `starts_at`;
+  - duplicate candidates require explicit `--force-link-event-id`.
+- `ops:sync` is update-only: it updates already-published/linked events and
+  does not create a new public `events` row before explicit `ops:publish`.
+- Existing notification types are reused: `event_time_changed` and
+  `event_cancelled`. No new notification types were added.
+
+### Content Ops commands
+
+Run from `backend/` after `npm install --legacy-peer-deps`, `npm run db:migrate`,
+`npm run db:seed`, and backend env setup.
+
+```bash
+npm run ops:import -- --file <json>
+npm run ops:list -- --state imported|duplicate|published|cancelled
+npm run ops:publish -- --ingestion-id <id> [--venue-id <id>] [--force-link-event-id <id>]
+npm run ops:sync -- --file <json>
+npm run ops:update -- --ingestion-id <id>
+npm run ops:cancel -- --event-id <id> --reason "..."
+npm run ops:content -- <command>
+```
+
+`ops:content` is the shared entrypoint behind the convenience scripts; supported
+commands are `import`, `list`, `show`, `publish`, `update`, `sync`, `cancel`.
+
+Safe synthetic payload example:
+[`docs/examples/content-ops-event.example.json`](./examples/content-ops-event.example.json).
+
+### Operator flow
+
+1. Prepare one normalized JSON payload per event. Keep it synthetic/manual in
+   v1; do not add parser bots or network fetches.
+2. Import: `npm run ops:import -- --file path/to/event.json`.
+3. Inspect queue: `npm run ops:list -- --state imported` (or `duplicate`,
+   `published`, `cancelled`). Use `npm run ops:content -- show --ingestion-id <id>`
+   for one ingestion.
+4. Publish after operator verification:
+   `npm run ops:publish -- --ingestion-id <id> [--venue-id <id>]`.
+5. Sync updates later with `npm run ops:sync -- --file path/to/event.json`.
+   Before publish, `ops:sync` reports skipped/error and does **not** create a
+   public event.
+6. Cancel with `npm run ops:cancel -- --event-id <id> --reason "..."`.
+
+Operator gotchas:
+
+- `source_url` is metadata only, no fetch/parse.
+- Fingerprint duplicate without a source key requires explicit
+  `--force-link-event-id`.
+- If `--venue-id` is omitted, Content Ops reuses an exact name+address venue
+  match; otherwise it may auto-create a venue with `lat=0/lng=0`. Prefer an
+  existing `--venue-id` when coordinates matter.
+
+### Known limitations
+
+- Real SMS OTP is still absent; `OTP_CODE=1111` remains the dev/mock path.
+- Push notifications are still absent; only in-app + WS notifications exist.
+- Native offline detection remains limited to WS reconnect status + recent
+  network errors; browser `online/offline` is web-only.
+- Parser bots/scraping are not implemented.
+- Venue self-serve is not implemented.
+- Full admin UI is not implemented.
+- Map mode is not a priority.
+- Monetization must not be started.
+- Content Ops is manual/operator-only.
+- Venues auto-created through Content Ops may have `lat/lng = 0`.
+- No fuzzy auto-merge without explicit operator confirmation.
+
+### Next recommended task: Manual Content Seeding Sprint / Operator Trial
+
+Do not jump straight to parser bots, admin platform, or venue portal. The next
+useful step is an operator trial:
+
+1. Pick 10–20 real events.
+2. Manually prepare normalized JSON payloads.
+3. Run import → list/show → publish → sync/update → cancel where applicable.
+4. Record what fields, validation, commands, or docs are missing for a human
+   operator.
+5. Only after that trial decide whether a small internal UI or parser/bot work
+   is justified.
+
+---
+
+## Previous checkpoint — 2026-04-25 (historical, before Content Ops v1)
 
 The repo just finished a beta-hardening cycle and is about to pivot from
 core planning work to content/events supply. Anything below is what a
@@ -133,10 +251,9 @@ These are the four PRs that landed since the demo-stack + Phase-0 pair
   listeners are web-only; on native, only the WS reconnect status + the
   "recent network error" signal fire `ConnectivityBanner`. NetInfo-based
   native flip is intentionally out of scope for the hardening sprint.
-- **Content supply is seed-only** — events and venues come from
-  `backend/src/db/seed.ts`. There is no user-facing creation form, no
-  admin tool, and no feed pipeline. This is the largest remaining gap
-  for closed-beta readiness.
+- **At this historical checkpoint, content supply was seed-only** — events and
+  venues came from `backend/src/db/seed.ts`. Content Ops v1 has since shipped;
+  keep this section only as pre-Content-Ops context.
 - **No venue self-serve** — venues are also seed-only. Admin platform
   is out of scope; the next task (see below) assumes an internal
   workflow, not a public portal.
@@ -145,7 +262,7 @@ These are the four PRs that landed since the demo-stack + Phase-0 pair
 - **Monetization is not started and must not be.**
 - **CI for fork/bot PRs may require manual approval** in the "Approve and
   run workflows" flow on GitHub. Devin Review usually runs regardless;
-  the 4 GitHub Actions jobs sometimes don't spawn until approved.
+  GitHub Actions jobs sometimes don't spawn until approved.
 - **Home feed pagination is disabled when a category filter is active**
   (documented compromise from the Beta Hardening sprint; category filter
   is client-side over the paginated result set). Fine for 6 seeded
@@ -156,7 +273,7 @@ These are the four PRs that landed since the demo-stack + Phase-0 pair
   worth fixing before Content Ops unless a new notification type
   surfaces the issue.
 
-### Next recommended task: Content Ops / Real Events Pipeline v1
+### Historical next task: Content Ops / Real Events Pipeline v1 (now shipped)
 
 The app is close to closed-beta readiness on product/core-loop, but the
 main blocker is no longer planning — it is **real events**. Tools and
@@ -289,7 +406,7 @@ protected by automated gates.
 - `README.md` — quick-start updated, Linux/macOS section added, links to
   DEMO_SETUP and CI.
 
-### CI (new)
+### CI (historical)
 - `.github/workflows/ci.yml` — four jobs, each on `pull_request` and
   `push: master`:
   - `backend typecheck` (`npx tsc --noEmit` in `backend/`)
