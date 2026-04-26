@@ -18,10 +18,12 @@ import static com.plans.backend.persistence.DatabaseTable.VOTES;
 
 import com.plans.backend.persistence.Database;
 import com.plans.backend.persistence.DevSeedRunner;
+import java.nio.charset.StandardCharsets;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -66,6 +68,15 @@ class DatabaseMigrationTest {
         assertThat(notificationTypeExists("plan_join_via_link")).isTrue();
         assertThat(plansWithoutShareToken()).isZero();
         assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+    }
+
+    @Test
+    void flywayBaselineDoesNotDeclareTransactionBoundaries() throws Exception {
+        var resource = new ClassPathResource("db/migration/V1__baseline_schema.sql");
+        String sql = resource.getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(sql.lines().map(String::trim))
+            .doesNotContain("BEGIN;", "COMMIT;");
     }
 
     @Test

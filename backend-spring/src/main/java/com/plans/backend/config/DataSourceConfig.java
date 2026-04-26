@@ -46,7 +46,8 @@ public class DataSourceConfig {
         }
 
         String query = uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery();
-        String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + uri.getRawPath() + query;
+        int port = uri.getPort() == -1 ? 5432 : uri.getPort();
+        String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + port + uri.getRawPath() + query;
         String userInfo = uri.getUserInfo();
         if (userInfo == null || userInfo.isBlank()) {
             return new PostgresConnection(jdbcUrl, username, password);

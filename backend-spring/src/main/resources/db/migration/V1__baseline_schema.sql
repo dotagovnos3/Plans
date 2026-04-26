@@ -2,8 +2,6 @@
 -- PostgreSQL 15+
 -- Matches: contracts/mvp/api/openapi.yaml, docs/backend-contract.md
 
-BEGIN;
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
@@ -265,5 +263,3 @@ CREATE INDEX idx_messages_context ON messages (context_id, created_at);
 -- 2. Max 2 votes per user per proposal_type per plan (votes joined with plan_proposals)
 -- 3. Only plan creator can finalize/unfinalize/cancel/invite
 -- 4. Only group creator can add members to group
-
-COMMIT;
