@@ -126,8 +126,10 @@ class SpringRealtimeSmokeIntegrationTest {
         assertThat(participantAdded.at("/payload/participant/user_id").asText()).isEqualTo(invitee.userId());
         JsonNode notificationCreated = inviteeWs.waitForEvent("notification.created");
         assertThat(notificationCreated.at("/channel").asText()).isEqualTo("user:" + invitee.userId());
+        assertThat(notificationCreated.at("/payload/notificationId").asText()).isNotBlank();
         assertThat(notificationCreated.at("/payload/type").asText()).isEqualTo("plan_invite");
         assertThat(notificationCreated.at("/payload/payload/plan_id").asText()).isEqualTo(planId);
+        assertThat(notificationCreated.at("/payload/createdAt").asText()).isNotBlank();
 
         updateParticipant(invitee.token(), planId, invitee.userId(), "thinking");
         JsonNode participantUpdated = participantWs.waitForEvent("plan.participant.updated");
