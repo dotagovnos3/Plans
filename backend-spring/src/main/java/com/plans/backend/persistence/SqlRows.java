@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.postgresql.util.PGobject;
 
 public final class SqlRows {
     private SqlRows() {
@@ -41,6 +42,9 @@ public final class SqlRows {
         }
         if (value instanceof UUID) {
             return value.toString();
+        }
+        if (value instanceof PGobject pgObject) {
+            return pgObject.getValue();
         }
         return value;
     }
