@@ -4,13 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.plans.backend.persistence.DevSeedRunner;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -209,6 +212,192 @@ class AuthDiscoveryParityIntegrationTest {
             .andExpect(jsonPath("$.message").value("Venue not found"));
     }
 
+    @Test
+    void profilePatchMatchesFastifyValidationAndResponseShape() throws Exception {
+        String token = login();
+        String username = "profile_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
+        mockMvc.perform(patch("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Updated User\",\"username\":\"" + username + "\",\"avatar_url\":null}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.name").value("Updated User"))
+            .andExpect(jsonPath("$.user.username").value(username))
+            .andExpect(jsonPath("$.user.phone").value("+79990000000"));
+
+        mockMvc.perform(patch("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.username").value(username));
+
+        mockMvc.perform(patch("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.message").value("name must be 1-100 chars"));
+
+        mockMvc.perform(patch("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"has spaces\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.message").value("username must be 1-50 alphanumeric/underscore chars"));
+
+        mockMvc.perform(patch("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"avatar_url\":123}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.message").value("avatar_url must be null or string <= 500 chars"));
+
+        mockMvc.perform(patch("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"masha\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("USERNAME_TAKEN"))
+            .andExpect(jsonPath("$.message").value("Username already taken"));
+    }
+
+    @Test
+    void friendWriteFlowMatchesFastifyStatusesAndShapes() throws Exception {
+        LoginResult userA = loginAs(uniquePhone());
+        LoginResult userB = loginAs(uniquePhone());
+
+        mockMvc.perform(post("/api/users/friends/" + userB.userId())
+                .header("Authorization", "Bearer " + userA.token()))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.friendship.status").value("pending"))
+            .andExpect(jsonPath("$.friendship.requester_id").value(userA.userId()))
+            .andExpect(jsonPath("$.friendship.addressee_id").value(userB.userId()));
+
+        mockMvc.perform(post("/api/users/friends/" + userB.userId())
+                .header("Authorization", "Bearer " + userA.token()))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("REQUEST_ALREADY_SENT"))
+            .andExpect(jsonPath("$.friendship.status").value("pending"));
+
+        mockMvc.perform(patch("/api/users/friends/" + userA.userId() + "?action=accept")
+                .header("Authorization", "Bearer " + userB.token()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.friendship.status").value("accepted"));
+
+        mockMvc.perform(post("/api/users/friends/" + userB.userId())
+                .header("Authorization", "Bearer " + userA.token()))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ALREADY_FRIENDS"))
+            .andExpect(jsonPath("$.friendship.status").value("accepted"));
+
+        mockMvc.perform(delete("/api/users/friends/" + userB.userId())
+                .header("Authorization", "Bearer " + userA.token()))
+            .andExpect(status().isNoContent());
+
+        Integer friendshipCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM friendships WHERE (requester_id = ?::uuid AND addressee_id = ?::uuid) OR (requester_id = ?::uuid AND addressee_id = ?::uuid)",
+            Integer.class,
+            userA.userId(),
+            userB.userId(),
+            userB.userId(),
+            userA.userId()
+        );
+        assertThat(friendshipCount).isZero();
+    }
+
+    @Test
+    void friendWriteErrorsUseFastifyEnvelope() throws Exception {
+        String token = login();
+        String unknownUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+        mockMvc.perform(post("/api/users/friends/not-a-uuid").header("Authorization", "Bearer " + token))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.message").value("id must be a valid uuid"));
+
+        mockMvc.perform(post("/api/users/friends/" + unknownUserId).header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("User not found"));
+
+        mockMvc.perform(patch("/api/users/friends/" + unknownUserId + "?action=accept")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("No pending request from this user"));
+
+        mockMvc.perform(delete("/api/users/friends/not-a-uuid").header("Authorization", "Bearer " + token))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+            .andExpect(jsonPath("$.message").value("id must be a valid uuid"));
+
+        mockMvc.perform(patch("/api/users/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"No Auth\"}"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void eventInterestAndSaveWritesMatchFastifyBehavior() throws Exception {
+        String token = login();
+        String eventId = "61111111-1111-4111-8111-111111111111";
+
+        mockMvc.perform(post("/api/events/" + eventId + "/interest").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(post("/api/events/" + eventId + "/interest").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        assertThat(countRows("event_interests", eventId)).isOne();
+
+        mockMvc.perform(get("/api/events/" + eventId).header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.event.id").value(eventId));
+
+        mockMvc.perform(delete("/api/events/" + eventId + "/interest").header("Authorization", "Bearer " + token))
+            .andExpect(status().isNoContent());
+        assertThat(countRows("event_interests", eventId)).isZero();
+
+        mockMvc.perform(post("/api/events/" + eventId + "/save").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(post("/api/events/" + eventId + "/save").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        assertThat(countRows("saved_events", eventId)).isOne();
+
+        mockMvc.perform(delete("/api/events/" + eventId + "/save").header("Authorization", "Bearer " + token))
+            .andExpect(status().isNoContent());
+        assertThat(countRows("saved_events", eventId)).isZero();
+    }
+
+    @Test
+    void eventWriteErrorsUseFastifyEnvelope() throws Exception {
+        String token = login();
+        String unknownEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+        mockMvc.perform(post("/api/events/" + unknownEventId + "/interest").header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Event not found"));
+
+        mockMvc.perform(post("/api/events/" + unknownEventId + "/save").header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Event not found"));
+
+        mockMvc.perform(post("/api/events/61111111-1111-4111-8111-111111111111/interest"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+            .andExpect(jsonPath("$.message").value("Unauthorized"));
+    }
+
     private String login() throws Exception {
         mockMvc.perform(post("/api/auth/otp/send")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -223,6 +412,40 @@ class AuthDiscoveryParityIntegrationTest {
             .getResponse()
             .getContentAsString();
         return JsonField.readString(verifyJson, "access_token");
+    }
+
+    private LoginResult loginAs(String phone) throws Exception {
+        mockMvc.perform(post("/api/auth/otp/send")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"" + phone + "\"}"))
+            .andExpect(status().isOk());
+
+        String verifyJson = mockMvc.perform(post("/api/auth/otp/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"" + phone + "\",\"code\":\"1111\"}"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String userId = jdbc.queryForObject("SELECT id::text FROM users WHERE phone = ?", String.class, phone);
+        return new LoginResult(JsonField.readString(verifyJson, "access_token"), userId);
+    }
+
+    private String uniquePhone() {
+        String digits = UUID.randomUUID().toString().replaceAll("\\D", "") + "0000000";
+        return "+7988" + digits.substring(0, 7);
+    }
+
+    private int countRows(String table, String eventId) {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM " + table + " WHERE user_id = (SELECT id FROM users WHERE phone = '+79990000000') AND event_id = ?::uuid",
+            Integer.class,
+            eventId
+        );
+        return count;
+    }
+
+    private record LoginResult(String token, String userId) {
     }
 
     private void register(String phone) throws Exception {
