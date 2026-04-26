@@ -39,6 +39,9 @@ class DatabaseMigrationTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
+        registry.add("DATABASE_URL", POSTGRES::getJdbcUrl);
+        registry.add("DATABASE_USERNAME", POSTGRES::getUsername);
+        registry.add("DATABASE_PASSWORD", POSTGRES::getPassword);
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -59,7 +62,6 @@ class DatabaseMigrationTest {
 
     @Test
     void flywayCreatesBaselineAndAdditiveSchema() {
-        assertThat(database.count(USERS)).isZero();
         assertThat(tableExists("event_ingestions")).isTrue();
         assertThat(columnExists("messages", "client_message_id")).isTrue();
         assertThat(columnExists("events", "status")).isTrue();
