@@ -1,7 +1,8 @@
 # backend-spring
 
-Spring Boot backend migration target.
-Fastify remains canonical until full Spring parity and switchover are complete.
+Spring Boot backend switchover-candidate / preferred parity backend.
+Fastify remains available in `../backend` as fallback/reference until a separate
+final canonical switch is completed with a rollback path.
 
 ## Requirements
 
@@ -44,10 +45,14 @@ Fastify remains canonical until full Spring parity and switchover are complete.
   - Explicit publish into public `events`.
   - Update/cancel propagation through existing notifications.
 
-## Not yet covered
+## Switchover-candidate boundary
 
-- No known backend-spring functional parity gaps. Fastify remains canonical until a
-  separate switchover PR.
+- Spring functional parity is reached and this backend is the preferred parity
+  candidate for local development and final smoke verification.
+- This is not a dangerous production switchover: Fastify is not removed, API
+  contracts are unchanged, and fallback commands stay documented.
+- See `../docs/SPRING_SWITCHOVER.md` for the Spring-first runbook, full smoke,
+  frontend env, content ops commands, and rollback path.
 
 ## Package structure
 
@@ -72,6 +77,7 @@ cd backend-spring
 ./gradlew coreSmokeTest
 ./gradlew realtimeSmokeTest
 ./gradlew contentOpsSmokeTest
+./gradlew fullSpringSmokeTest
 ```
 
 ## Local tests
@@ -277,6 +283,73 @@ Typical smoke steps:
 5. Verify OTP auth with dev code `1111`.
 6. Exercise only the endpoints in the current parity slice.
 
+## Spring full network smoke
+
+Run from the repo root:
+
+```bash
+cd backend-spring
+./gradlew fullSpringSmokeTest
+```
+
+This is the final switchover-candidate smoke. It starts Spring Boot on a random
+local port as a real web server, uses PostgreSQL 17 through Testcontainers,
+calls `localhost` through Java's real HTTP client, and connects a real
+WebSocket client to `/api/ws`.
+
+Smoke coverage:
+
+- health/startup;
+- dev OTP auth (`OTP_CODE=1111`);
+- authenticated events list;
+- create/list/get plan;
+- share-token preview and join;
+- participants invite/list;
+- proposals;
+- vote/unvote;
+- finalize/unfinalize;
+- messages and `client_message_id` dedup;
+- realtime event over real WebSocket;
+- complete/repeat;
+- notifications list/read/read-all;
+- content ops service path coverage for import/list/sync/publish/error handling.
+
+This smoke is intentionally network-level so it catches wrong ports,
+context-path mistakes, JSON serialization issues, broken Authorization headers,
+WebSocket endpoint failures, and Spring Boot startup issues that MockMvc-only
+tests can miss.
+
+## Frontend env against Spring
+
+Local frontend env:
+
+```bash
+cd fest-app
+export EXPO_PUBLIC_API_BASE_URL=http://localhost:3001/api
+unset EXPO_PUBLIC_WS_BASE_URL
+npx expo start --web
+```
+
+When `EXPO_PUBLIC_WS_BASE_URL` is unset, the frontend derives
+`ws://localhost:3001/api/ws` from the API URL. For HTTPS tunnels/mobile testing,
+set `EXPO_PUBLIC_WS_BASE_URL=wss://<backend-host>/api/ws` before Metro starts.
+
+## Fastify rollback
+
+Stop Spring and use the existing fallback backend:
+
+```bash
+cd backend
+npm install --legacy-peer-deps
+cp .env.example .env
+npm run db:migrate
+npm run db:seed
+npm run start
+```
+
+Keep the local frontend URL at `http://localhost:3001/api`, or point the Expo
+env vars at the Fastify tunnel for mobile testing.
+
 ## Schema rule
 
 Do not use Hibernate to generate database schema.
@@ -286,5 +359,6 @@ Do not use Hibernate to generate database schema.
 
 ## Migration boundary
 
-Do not change `fest-app/`, `contracts/`, or the old `backend/` as part of Spring-only migration
-slices unless a later task explicitly expands scope.
+Do not change frontend product logic, API contracts, or remove the old
+`backend/` fallback as part of switchover-candidate work unless a later task
+explicitly expands scope.

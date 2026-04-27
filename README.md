@@ -1,6 +1,10 @@
 # Планы? / FEST MVP
 
-Expo + Fastify + PostgreSQL MVP of the "Планы?" / FEST app.
+Expo + PostgreSQL MVP of the "Планы?" / FEST app.
+
+Spring Boot in `backend-spring/` is the switchover-candidate / preferred parity
+backend. The Fastify backend in `backend/` remains in the repo as the documented
+fallback/reference until a separate final canonical switch removes that risk.
 
 ## Quick links
 
@@ -11,14 +15,17 @@ Expo + Fastify + PostgreSQL MVP of the "Планы?" / FEST app.
 - [`docs/DEMO_SETUP.md`](./docs/DEMO_SETUP.md) — runbook for standing the
   demo stack up on a phone via Expo Go (Postgres → backend → cloudflared
   → Expo tunnel → QR).
+- [`docs/SPRING_SWITCHOVER.md`](./docs/SPRING_SWITCHOVER.md) — Spring-first
+  switchover-candidate runbook, full smoke, and Fastify rollback path.
 - [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) — original Windows runbook.
 - [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) — CI gate
-  (backend/frontend typecheck + backend REST/realtime/content-ops smoke).
+  (Fastify + Spring backend smoke jobs and frontend typecheck).
 
 ## Repo layout
 
 - `fest-app/` — frontend (Expo React Native, web + mobile)
-- `backend/` — Fastify + PostgreSQL API
+- `backend-spring/` — Spring Boot + PostgreSQL API, switchover-candidate backend
+- `backend/` — Fastify + PostgreSQL API, fallback/reference backend
 - `contracts/` — OpenAPI + DB schema + acceptance docs
 - `docs/` — status, handoff, runbooks, testing artifacts
 
@@ -32,7 +39,39 @@ docker run -d --name fest-pg \
   -e POSTGRES_DB=plans \
   postgres:17
 
-# Backend
+# Spring backend (switchover candidate)
+cd backend-spring
+./gradlew bootRun   # listens on :3001, runs Flyway automatically
+```
+
+For local UI data, load the dev seed in a second terminal after Spring applies
+migrations:
+
+```bash
+psql postgres://postgres:postgres@localhost:5432/plans \
+  -f backend-spring/src/main/resources/db/seed/R__dev_seed.sql
+```
+
+Then start the frontend:
+
+```bash
+cd ../fest-app
+npm install --legacy-peer-deps
+export EXPO_PUBLIC_API_BASE_URL=http://localhost:3001/api
+unset EXPO_PUBLIC_WS_BASE_URL # derived as ws://localhost:3001/api/ws
+npx expo start --web
+```
+
+Auth: any seeded phone (e.g. `+79990000000`) + OTP code `1111`.
+
+Spring uses the same local API contract path as Fastify:
+`EXPO_PUBLIC_API_BASE_URL=http://localhost:3001/api`. When
+`EXPO_PUBLIC_WS_BASE_URL` is unset, the frontend derives
+`ws://localhost:3001/api/ws` from the API URL.
+
+Fastify fallback/reference path:
+
+```bash
 cd backend
 npm install --legacy-peer-deps
 echo 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/plans' > .env
@@ -43,13 +82,11 @@ npm run db:migrate
 npm run db:seed
 npm run start   # listens on :3001
 
-# Frontend (web)
 cd ../fest-app
-npm install --legacy-peer-deps
+export EXPO_PUBLIC_API_BASE_URL=http://localhost:3001/api
+unset EXPO_PUBLIC_WS_BASE_URL
 npx expo start --web
 ```
-
-Auth: any seeded phone (e.g. `+79990000000`) + OTP code `1111`.
 
 For phone testing via Expo Go tunnel, follow
 [`docs/DEMO_SETUP.md`](./docs/DEMO_SETUP.md) — backend must be publicly
@@ -88,6 +125,11 @@ docker — see `AGENTS.md` for `psql` and connection details.
 - Backend typecheck: `cd backend && npx tsc --noEmit`
 - Frontend typecheck: `cd fest-app && npx tsc --noEmit`
 - Optional animation sandbox: `cd fest-app && npx tsc --noEmit -p tsconfig.fest-animations.json`
+- Spring test: `cd backend-spring && ./gradlew test`
+- Spring core smoke: `cd backend-spring && ./gradlew coreSmokeTest`
+- Spring realtime smoke: `cd backend-spring && ./gradlew realtimeSmokeTest`
+- Spring content ops smoke: `cd backend-spring && ./gradlew contentOpsSmokeTest`
+- Spring full network smoke: `cd backend-spring && ./gradlew fullSpringSmokeTest`
 - Backend REST smoke: `cd backend && npx tsx src/tests/e2e-smoke.ts` (needs backend running)
 - Backend realtime smoke: `cd backend && npx tsx src/tests/rt2-smoke.ts` (needs backend running)
 - Backend content ops smoke: `cd backend && npx tsx src/tests/content-ops-smoke.ts` (needs backend running)
@@ -97,7 +139,18 @@ frontend TypeScript gate.
 
 ## Content Ops v1
 
-Internal real-event supply is CLI-only:
+Internal real-event supply is CLI-only. Spring switchover-candidate commands:
+
+```bash
+cd backend-spring
+SPRING_MAIN_WEB_APPLICATION_TYPE=none ./gradlew bootRun --args="import --file ../docs/examples/content-ops-event.example.json"
+SPRING_MAIN_WEB_APPLICATION_TYPE=none ./gradlew bootRun --args="list --state imported"
+SPRING_MAIN_WEB_APPLICATION_TYPE=none ./gradlew bootRun --args="publish --ingestion-id <id> [--venue-id <id>]"
+SPRING_MAIN_WEB_APPLICATION_TYPE=none ./gradlew bootRun --args="sync --file ../docs/examples/content-ops-event.example.json"
+SPRING_MAIN_WEB_APPLICATION_TYPE=none ./gradlew bootRun --args="cancel --event-id <id> --reason '...'"
+```
+
+Fastify fallback commands:
 `cd backend && npm run ops:import -- --file path/to/event.json`, then
 `ops:list`, `ops:publish`, `ops:sync`, and `ops:cancel`. `ops:sync` updates
 only already-published/linked events; new public events require explicit
@@ -109,16 +162,21 @@ coordinates matter. See
 
 ## CI
 
-Every PR and every push to `master` runs five jobs in parallel
+Every PR and every push to `master` runs Fastify, Spring, and frontend jobs
 ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)):
 
 - `backend typecheck`
 - `frontend typecheck`
+- `backend-spring test`
+- `backend-spring core smoke`
+- `backend-spring realtime smoke`
+- `backend-spring content ops smoke`
+- `backend-spring full smoke`
 - `backend e2e smoke` — Postgres 17 service, migrate, seed, start backend, `e2e-smoke.ts`
 - `backend realtime smoke` — same setup, `rt2-smoke.ts`
 - `backend content ops smoke` — same setup, `content-ops-smoke.ts`
 
-All five must be green to merge.
+All jobs must be green to merge.
 
 ## Phone testing via Expo Go
 

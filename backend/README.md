@@ -1,5 +1,10 @@
 # Планы? Backend
 
+Fastify remains available as the fallback/reference backend while
+`backend-spring/` is evaluated as the switchover-candidate preferred parity
+backend. Do not delete these commands until the final canonical Spring switch
+has a proven rollback path.
+
 ## Prerequisites
 
 - Node.js 22.x
