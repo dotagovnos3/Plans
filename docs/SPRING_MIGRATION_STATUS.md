@@ -1,12 +1,12 @@
 # Spring migration status checkpoint
 
-**Last updated:** 2026-04-26
+**Last updated:** 2026-04-27
 
 ## Current status
 
-Spring migration work is progressing in small parity checkpoints.
-Fastify remains the canonical backend until Spring reaches full parity and the production switchover
-is explicitly completed.
+Spring migration has reached functional parity and is now a switchover
+candidate. Fastify remains available as fallback/reference until the production
+switchover is explicitly completed with rollback coverage.
 
 Completed Spring parity checkpoints:
 
@@ -25,23 +25,24 @@ Completed Spring parity checkpoints:
 - Share-link endpoints:
   - `GET /api/plans/by-token/:token`.
   - `POST /api/plans/by-token/:token/join`.
-
-This document is a status checkpoint only.
-It does not introduce new API implementation work.
-
-## Still pending Spring parity
-
-The following Fastify-backed areas are not yet fully covered by Spring parity:
-
 - Proposals + voting.
 - Finalize/unfinalize + repeat.
 - Plan messages.
 - Realtime WebSocket behavior.
 - Content ops.
-- Full CI and production switchover to Spring.
 
-Do not treat Spring as the canonical backend until these pending areas and the switchover are
-complete.
+This document is a status checkpoint only.
+It does not introduce new API implementation work.
+
+## Still pending before final canonical switch
+
+- `fullSpringSmokeTest` must stay green in CI.
+- Frontend typecheck must stay green.
+- Manual Expo/mobile verification against the Spring URL must pass.
+- No known API contract mismatches should remain.
+- Fastify fallback must stay documented and available.
+- Production DB baseline/rollback planning must happen before pointing Spring
+  Flyway at an existing production/Fastify-managed database.
 
 ## Existing production app was not changed
 
@@ -82,10 +83,9 @@ GitHub Actions have not provided a reliable Spring CI signal for these Spring ch
 If the GitHub Checks page shows `0` checks / `0` workflow runs, do not treat that as GitHub CI
 green.
 
-The current workflow configuration is still Fastify/frontend oriented and does not run
-`backend-spring` Gradle tests as the Spring parity gate.
-Until Spring CI is explicitly added and running, the verification above is local verification plus
-any PR review signal shown on the PR.
+The workflow now keeps existing Fastify/frontend jobs and also runs Spring
+Gradle gates: `test`, `coreSmokeTest`, `realtimeSmokeTest`,
+`contentOpsSmokeTest`, and `fullSpringSmokeTest`.
 
 ## Fresh DB limitation
 
